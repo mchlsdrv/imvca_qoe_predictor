@@ -1,0 +1,176 @@
+Linear Regression:
+	> Summary:
+		# pckts score = 1.086
+		# piat unq score = -1.039
+		Min score = -0.778
+		Max score = 0.776
+		Mean score = 0.737
+		STD score = -0.598
+		Q1 score = -0.486
+		Q2 score = -0.219
+		Q3 score = 0.000
+Linear Regression:
+	> Summary:
+		# pckts score = 2.390
+		Mean score = 2.189
+		Q3 score = 1.235
+		STD score = 1.191
+		Q2 score = 1.103
+		# piat unq score = 0.704
+		Max score = 0.480
+		Q1 score = 0.092
+		Min score = 0.000
+Ridge Regression:
+	> Summary:
+		# pckts score = 1.086
+		# piat unq score = -1.038
+		Min score = -0.778
+		Max score = 0.775
+		Mean score = 0.737
+		STD score = -0.598
+		Q1 score = -0.486
+		Q2 score = -0.219
+		Q3 score = 0.000
+Ridge Regression:
+	> Summary:
+		# pckts score = 2.372
+		Mean score = 2.175
+		Q3 score = 1.217
+		STD score = 1.213
+		Q2 score = 1.113
+		# piat unq score = 0.698
+		Max score = 0.479
+		Q1 score = 0.093
+		Min score = 0.000
+Elastic Net Regression:
+	> Summary:
+		# pckts score = 0.411
+		# piat unq score = -0.396
+		Min score = -0.292
+		Max score = 0.000
+		Mean score = -0.000
+		STD score = -0.000
+		Q1 score = -0.000
+		Q2 score = 0.000
+		Q3 score = -0.000
+Elastic Net Regression:
+	> Summary:
+		# pckts score = 0.925
+		Mean score = 0.872
+		Q3 score = 0.551
+		Q2 score = 0.000
+		Q1 score = 0.000
+		STD score = 0.000
+		Max score = 0.000
+		Min score = 0.000
+		# piat unq score = 0.000
+Decision Tree:
+	> Summary:
+		# pckts score = 0.406
+		# piat unq score = 0.108
+		Min score = 0.104
+		Max score = 0.086
+		Mean score = 0.085
+		STD score = 0.077
+		Q1 score = 0.070
+		Q2 score = 0.063
+		Q3 score = 0.000
+Decision Tree:
+	> Summary:
+		# pckts score = 30.028
+		Q1 score = 17.520
+		Mean score = 17.201
+		Q3 score = 14.534
+		Max score = 12.054
+		Q2 score = 10.075
+		# piat unq score = 9.476
+		STD score = 8.643
+		Min score = 0.000
+Random Forest:
+	> Summary:
+		# pckts score = 0.394
+		# piat unq score = 0.109
+		Min score = 0.095
+		Max score = 0.094
+		Mean score = 0.091
+		STD score = 0.083
+		Q1 score = 0.067
+		Q2 score = 0.066
+		Q3 score = 0.000
+Random Forest:
+	> Summary:
+		# pckts score = 15.882
+		Q1 score = 7.809
+		Q3 score = 7.570
+		Mean score = 5.236
+		Max score = 4.395
+		Q2 score = 4.107
+		STD score = 3.749
+		# piat unq score = 2.879
+		Min score = 0.000
+SVM:
+	> Summary:
+		# pckts score = 1.943
+		# piat unq score = -1.069
+		Min score = -0.467
+		Max score = -0.327
+		Mean score = 0.281
+		STD score = 0.281
+		Q1 score = 0.200
+		Q2 score = -0.144
+		Q3 score = 0.000
+SVM:
+	> Summary:
+		# pckts score = 6.514
+		Q3 score = 1.981
+		# piat unq score = 0.350
+		STD score = 0.273
+		Max score = 0.256
+		Mean score = 0.211
+		Q2 score = 0.205
+		Q1 score = 0.021
+		Min score = 0.000
+XGBoost:
+	> Summary:
+		# pckts score = 0.280
+		# piat unq score = 0.219
+		Min score = 0.116
+		Max score = 0.096
+		Mean score = 0.085
+		STD score = 0.081
+		Q1 score = 0.075
+		Q2 score = 0.049
+		Q3 score = 0.000
+XGBoost:
+	> Summary:
+		# pckts score = 11.575
+		Mean score = 11.149
+		Q1 score = 8.193
+		Q3 score = 6.882
+		Q2 score = 5.895
+		STD score = 4.831
+		Max score = 3.991
+		# piat unq score = 3.082
+		Min score = 0.000
+AdaBoost:
+	> Summary:
+		# pckts score = 0.381
+		# piat unq score = 0.134
+		Min score = 0.115
+		Max score = 0.087
+		Mean score = 0.086
+		STD score = 0.071
+		Q1 score = 0.064
+		Q2 score = 0.062
+		Q3 score = 0.000
+AdaBoost:
+	> Summary:
+		# pckts score = 7.399
+		Q2 score = 1.420
+		Q1 score = 0.996
+		STD score = 0.859
+		Q3 score = 0.346
+		Max score = 0.336
+		# piat unq score = 0.181
+		Min score = 0.000
+		Mean score = -0.078

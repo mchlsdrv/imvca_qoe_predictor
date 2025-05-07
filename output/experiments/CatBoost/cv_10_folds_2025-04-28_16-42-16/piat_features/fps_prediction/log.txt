@@ -1,0 +1,9 @@
+> Running 10-CV ...
+=========================================================================
+> CV Fold: 1
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 44536
+    > Present reduced: 3.616%
+

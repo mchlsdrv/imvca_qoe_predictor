@@ -1,0 +1,156 @@
+> Running 10-CV ...
+=========================================================================
+> CV Fold: 1
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42572
+    > Present reduced: 7.867%
+
+
+                Mean Test Errors - 1 CV Fold:
+                    > Mean true values        : 56.58+/-14.262
+                    > Mean predicted values   : 56.35+/-12.750
+                    > Mean true vs pred error : 56.345123772072604 %
+                    > Mean errors             : 8.06+/-8.275
+    
+=========================================================================
+> CV Fold: 2
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42520
+    > Present reduced: 7.979%
+
+
+                Mean Test Errors - 2 CV Fold:
+                    > Mean true values        : 56.90+/-14.408
+                    > Mean predicted values   : 56.94+/-11.318
+                    > Mean true vs pred error : 56.9412853296862 %
+                    > Mean errors             : 9.10+/-8.379
+    
+=========================================================================
+> CV Fold: 3
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42574
+    > Present reduced: 7.862%
+
+
+                Mean Test Errors - 3 CV Fold:
+                    > Mean true values        : 56.75+/-14.341
+                    > Mean predicted values   : 56.86+/-12.078
+                    > Mean true vs pred error : 56.864024630656424 %
+                    > Mean errors             : 8.46+/-8.548
+    
+=========================================================================
+> CV Fold: 4
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42572
+    > Present reduced: 7.867%
+
+
+                Mean Test Errors - 4 CV Fold:
+                    > Mean true values        : 56.73+/-14.314
+                    > Mean predicted values   : 56.97+/-11.290
+                    > Mean true vs pred error : 56.96739524926257 %
+                    > Mean errors             : 8.84+/-8.215
+    
+=========================================================================
+> CV Fold: 5
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42590
+    > Present reduced: 7.828%
+
+
+                Mean Test Errors - 5 CV Fold:
+                    > Mean true values        : 57.07+/-14.442
+                    > Mean predicted values   : 56.99+/-11.438
+                    > Mean true vs pred error : 56.98651661287176 %
+                    > Mean errors             : 8.76+/-8.441
+    
+=========================================================================
+> CV Fold: 6
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42546
+    > Present reduced: 7.923%
+
+
+                Mean Test Errors - 6 CV Fold:
+                    > Mean true values        : 56.88+/-14.375
+                    > Mean predicted values   : 56.59+/-11.567
+                    > Mean true vs pred error : 56.58509973867041 %
+                    > Mean errors             : 8.58+/-8.202
+    
+=========================================================================
+> CV Fold: 7
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42574
+    > Present reduced: 7.862%
+
+
+                Mean Test Errors - 7 CV Fold:
+                    > Mean true values        : 56.99+/-14.334
+                    > Mean predicted values   : 56.97+/-11.842
+                    > Mean true vs pred error : 56.97101660179298 %
+                    > Mean errors             : 8.48+/-8.511
+    
+=========================================================================
+> CV Fold: 8
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42558
+    > Present reduced: 7.897%
+
+
+                Mean Test Errors - 8 CV Fold:
+                    > Mean true values        : 57.02+/-14.403
+                    > Mean predicted values   : 56.67+/-12.526
+                    > Mean true vs pred error : 56.673118977450706 %
+                    > Mean errors             : 8.13+/-8.324
+    
+=========================================================================
+> CV Fold: 9
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42539
+    > Present reduced: 7.938%
+
+
+                Mean Test Errors - 9 CV Fold:
+                    > Mean true values        : 56.48+/-14.270
+                    > Mean predicted values   : 56.81+/-13.000
+                    > Mean true vs pred error : 56.81159119928677 %
+                    > Mean errors             : 8.07+/-8.531
+    
+=========================================================================
+> CV Fold: 10
+
+Outliers
+    Total before reduction: 46207
+    Total after reduction: 42574
+    > Present reduced: 7.862%
+
+
+                Mean Test Errors - 10 CV Fold:
+                    > Mean true values        : 56.99+/-14.371
+                    > Mean predicted values   : 56.73+/-11.838
+                    > Mean true vs pred error : 56.7320730024163 %
+                    > Mean errors             : 8.66+/-8.672
+    
+
+    Mean reduced data (%)
+        - Train: 7.89+/-0.043
+        - Test: 0.49+/-0.079
+    
