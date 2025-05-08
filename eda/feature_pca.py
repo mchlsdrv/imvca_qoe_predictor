@@ -65,8 +65,9 @@ data_df.describe()
 
 data_df
 piat_feats_df = data_df.loc[:, PIAT_FEATURES]
+piat_feats_df = data_df
 piat_feats_df = (piat_feats_df - piat_feats_df.mean()) / piat_feats_df.std() 
-piat_feats_df, _ = remove_outliers(piat_feats_df, PIAT_FEATURES, 3)
+piat_feats_df, _ = remove_outliers(piat_feats_df, piat_feats_df.columns.values, 3)
 pca = PCA(n_components=piat_feats_df.shape[1])
 feat_pca_tbl = pd.DataFrame(pca.fit_transform(piat_feats_df))
 feat_pca_tbl

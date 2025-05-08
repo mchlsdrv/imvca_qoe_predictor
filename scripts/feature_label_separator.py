@@ -2,9 +2,7 @@ import os
 import numpy as np
 import pathlib
 import pandas as pd
-df = pd.read_csv('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/bandwidth/2024_06_16_12_56_250KBps/pcap_2024_06_16_12_56_250KBps.csv')
-df.columns
-df.dtypes
+
 EPSILON = 1e-10
 CV_FOLD = 1
 ALL_FEATURE_COLS = ['number_of_piats_in_time_window', 'number_of_unique_piats_in_time_window', 'min_piat', 'max_piat', 'mean_piat', 'std_piat', 'q1_piat', 'q2_piat', 'q3_piat', 'number_of_packet_sizes_in_time_window', 'number_of_unique_packet_sizes_in_time_window', 'min_packet_size', 'max_packet_size', 'mean_packet_size', 'std_packet_size', 'q1_packet_size', 'q2_packet_size', 'q3_packet_size']
