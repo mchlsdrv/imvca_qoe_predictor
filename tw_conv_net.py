@@ -26,7 +26,7 @@ class EncDS(torch.utils.data.Dataset):
         self.feat_cols = features
         self.lbl_cols = labels
         self.img_sz = image_size
-        self.sampler = RFR(n_estimators=300, max_depth=None)
+        self.sampler = RFR(n_estimators=10, max_depth=10)
         self.p_smpl = p_sample
         
         self.feats = None #data.loc[:, features]
@@ -37,20 +37,27 @@ class EncDS(torch.utils.data.Dataset):
 
         
     def __len__(self):
-        return len(self.data)
+        return len(self.data) - self.img_sz
         
     def __getitem__(self, index):
         i_strt = index
         i_end = i_strt + self.img_sz
         
-        feats = self.feats.iloc[i_strt:i_end, :].T.values.reshape(self.n_chnls, self.img_sz, self.img_sz)
-        feats = np.array(list(map(lambda x: x.T, feats)))  # change the order of the features to represent joint events
-        lbls = self.lbls.iloc[i_strt:i_end, :].T.values.flatten()
+        feats = self.feats.iloc[i_strt:i_end, :].T.values
+        lbls = self.lbls.iloc[i_strt:i_end, :].T.values
 
         # - If we add noise to the data or not
         if np.random.random() < self.p_smpl:
             feats += np.random.randn(*feats.shape)
-            lbls = self.sampler.predict(feats)
+            lbls = self.sampler.predict(feats.T)
+
+        try:
+            feats = feats.reshape(self.n_chnls, self.img_sz, self.img_sz)
+            feats = np.array(list(map(lambda x: x.T, feats)))  # change the order of the features to represent joint events
+        except Exception as err:
+            print(err)
+
+        lbls = lbls.flatten()
 
         X = torch.as_tensor(feats, dtype=torch.float32)
         Y = torch.as_tensor(lbls, dtype=torch.float32)
