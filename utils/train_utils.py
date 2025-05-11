@@ -20,7 +20,6 @@ def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
         state_dict=model.state_dict(),
         optimizer=optimizer.state_dict(),
     )
-    # os.makedirs(filename.parent, exist_ok=True)
     torch.save(state, filename)
 
 
