@@ -7,6 +7,7 @@ from utils.train_utils import run_cv
 import torch
 
 
+MODEL_NAME = 'QoENet1D'
 DATA_TYPE = 'packet_size'
 # DATA_TYPE = 'piat'
 
@@ -39,29 +40,33 @@ def main():
     save_dir = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
     os.makedirs(save_dir)
     feats = PACKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES
-    run_cv(
-        model=MODEL,
-        model_params={
-            'model_name': 'QoENet1d',
-            'input_size': INPUT_SIZE,
-            'output_size': OUTPUT_SIZE,
-            'n_units': N_UNITS,
-            'n_layers': N_LAYERS
-        },
-        n_folds=10,
-        features=feats,
-        labels=LABELS,
-        cv_root_dir=CV_ROOT_DIR,
-        save_dir=save_dir,
-        nn_params={
-            'batch_size': BATCH_SIZE,
-            'val_prop': VAL_PROP,
-            'epochs': EPOCHS,
-            'loss_function': torch.nn.MSELoss,
-            'learning_rate': LEARNING_RATE,
-            'optimizer': torch.optim.Adam
-        }
-    )
+
+    with (save_dir / 'log.txt').open(mode='a') as log_fl:
+        run_cv(
+            model=MODEL,
+            model_name=MODEL_NAME,
+            model_params={
+                'model_name': 'QoENet1d',
+                'input_size': INPUT_SIZE,
+                'output_size': OUTPUT_SIZE,
+                'n_units': N_UNITS,
+                'n_layers': N_LAYERS
+            },
+            n_folds=10,
+            features=feats,
+            label=LABELS,
+            cv_root_dir=CV_ROOT_DIR,
+            save_dir=save_dir,
+            nn_params={
+                'batch_size': BATCH_SIZE,
+                'val_prop': VAL_PROP,
+                'epochs': EPOCHS,
+                'loss_function': torch.nn.MSELoss,
+                'learning_rate': LEARNING_RATE,
+                'optimizer': torch.optim.Adam
+            },
+            log_file=log_fl
+        )
 
 
 if __name__ == '__main__':

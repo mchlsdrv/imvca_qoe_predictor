@@ -12,6 +12,38 @@ matplotlib.use('Agg')
 plt.style.use('ggplot')
 
 
+class EncResNet(torch.nn.Module):
+    def __init__(self, model, in_channels: int,  out_size: int):
+        super().__init__()
+
+        self.mdl = model
+        self.in_chnls = in_channels
+        self.out_sz = out_size
+
+        self.make_model()
+
+    def make_model(self):
+        fst_lyr = self.mdl.conv1
+        self.mdl.conv1 = torch.nn.Conv2d(
+            self.in_chnls,
+            fst_lyr.out_channels,
+            kernel_size=(fst_lyr.kernel_size[0], fst_lyr.kernel_size[1]),
+            stride=(fst_lyr.stride[0], fst_lyr.stride[1]),
+            padding=fst_lyr.padding,
+            bias=False if fst_lyr.bias is None else fst_lyr.bias
+        )
+
+        lst_lyr = self.mdl.fc
+        self.mdl.fc = torch.nn.Linear(
+            lst_lyr.in_features,
+            self.out_sz
+        )
+
+    def forward(self, x):
+        x = self.mdl(x)
+        return x
+
+
 class AutoEncoder(torch.nn.Module):
     class Encoder(torch.nn.Module):
         def __init__(self, in_units, code_length, layer_activation):
@@ -269,7 +301,6 @@ class GRAGDataset(torch.utils.data.Dataset):
 
     def get_edges(self, X, y):
         self.edges = self.knn_classifier.fit(X, y)
-
 
 
 class GCNRegressor(torch.nn.Module):

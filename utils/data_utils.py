@@ -1,5 +1,7 @@
+import datetime
 import os
 import pathlib
+import time
 
 import torch
 import torch.utils.data
@@ -12,6 +14,72 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from configs.params import OUTLIER_TH, EPSILON
+
+
+class EncDS(torch.utils.data.Dataset):
+    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, p_sample: float = 0.1):
+        super().__init__()
+
+        self.data = data
+        self.feat_cols = features
+        self.lbl_cols = labels
+        self.img_sz = image_size
+        self.sampler = sklearn.ensemble.RandomForestRegressor(n_estimators=10, max_depth=10)
+        self.p_smpl = p_sample
+
+        self.feats = None
+        self.lbls = None
+        self.n_chnls = None
+
+        self.make_dataset()
+
+    def __len__(self):
+        return len(self.data) - self.img_sz
+
+    def __getitem__(self, index):
+        i_strt = index
+        i_end = i_strt + self.img_sz
+
+        feats = self.feats.iloc[i_strt:i_end, :].T.values
+        lbls = self.lbls.iloc[i_strt:i_end, :].T.values
+
+        # - If we add noise to the data or not
+        if np.random.random() < self.p_smpl:
+            feats += np.random.randn(*feats.shape)
+            lbls = self.sampler.predict(feats.T)
+
+        try:
+            feats = feats.reshape(self.n_chnls, self.img_sz, self.img_sz)
+            feats = np.array(list(map(lambda x: x.T, feats)))  # change the order of the features to represent joint events
+        except Exception as err:
+            print(err)
+
+        lbls = lbls.flatten()
+
+        X = torch.as_tensor(feats, dtype=torch.float32)
+        Y = torch.as_tensor(lbls, dtype=torch.float32)
+
+        return X, Y
+
+    def make_dataset(self):
+        # - Drop N/As
+        self.data = self.data.dropna()
+
+        # - Split the data into features and labels
+        self.feats = self.data.loc[:, self.feat_cols]
+        self.lbls = self.data.loc[:, self.lbl_cols]
+
+        # - Calculate the number of channels
+        self.n_chnls = self.feats.shape[-1] // self.img_sz
+
+        # - Normalize the features
+        self.feats = (self.feats - self.feats.mean()) / (self.feats.std() + EPSILON)
+
+        # - Train the sampler on the train data to use in the course of training fo augmentation
+        t_strt = time.time()
+        print(f'- Fitting sampler ...')
+        self.sampler.fit(self.feats.values, self.lbls.values)
+        print(f'- Sampler training took {datetime.timedelta(seconds=time.time() - t_strt)}')
 
 
 class QoEDataset(torch.utils.data.Dataset):
@@ -150,10 +218,8 @@ def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathli
         os.makedirs(test_set_save_dir, exist_ok=True)
 
         # -- Save teh datasets
-        # train_data.dropna(axis=0, inplace=True)
         train_data.to_csv(test_set_save_dir / f'train_data.csv', index=False)
 
-        # test_data.dropna(axis=0, inplace=True)
         test_data.to_csv(test_set_save_dir / f'test_data.csv', index=False)
 
 
@@ -298,4 +364,3 @@ def get_input_data(data, tokenize: bool, device: torch.cuda.device):
         input_data = [X]
 
     return input_data, Y
-

@@ -6,6 +6,8 @@ from sklearn.ensemble import RandomForestRegressor
 from xgboost import  XGBRegressor
 from catboost import  CatBoostRegressor
 
+from models import QoENet1D, EncResNet
+
 # -----------
 # - GENERAL -
 # -----------
@@ -97,6 +99,8 @@ LABELS = [
 ]
 
 MODELS = {
+    'EncResNet': EncResNet,
+    'QoENet1D': QoENet1D,
     'RandomForestRegressor': RandomForestRegressor,
     'XGBoost': XGBRegressor,
     'CatBoost': CatBoostRegressor,

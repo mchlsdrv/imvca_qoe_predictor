@@ -1,122 +1,16 @@
-import datetime
 import os
 import pathlib
-import time
 
 import numpy as np
 import pandas as pd
-import sklearn
 import torch
 import torchvision
 from tqdm import tqdm
 
-from configs.params import EPSILON
-from utils.data_utils import get_train_val_split
+from models import EncResNet
+from utils.data_utils import get_train_val_split, EncDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint
-
-
-class EncDS(torch.utils.data.Dataset):
-    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, p_sample: float = 0.1):
-        super().__init__()
-        
-        self.data = data
-        self.feat_cols = features
-        self.lbl_cols = labels
-        self.img_sz = image_size
-        self.sampler = sklearn.ensemble.RandomForestRegressor(n_estimators=10, max_depth=10)
-        self.p_smpl = p_sample
-        
-        self.feats = None
-        self.lbls = None
-        self.n_chnls = None
-        
-        self.make_dataset()
-
-    def __len__(self):
-        return len(self.data) - self.img_sz
-        
-    def __getitem__(self, index):
-        i_strt = index
-        i_end = i_strt + self.img_sz
-        
-        feats = self.feats.iloc[i_strt:i_end, :].T.values
-        lbls = self.lbls.iloc[i_strt:i_end, :].T.values
-
-        # - If we add noise to the data or not
-        if np.random.random() < self.p_smpl:
-            feats += np.random.randn(*feats.shape)
-            lbls = self.sampler.predict(feats.T)
-
-        try:
-            feats = feats.reshape(self.n_chnls, self.img_sz, self.img_sz)
-            feats = np.array(list(map(lambda x: x.T, feats)))  # change the order of the features to represent joint events
-        except Exception as err:
-            print(err)
-
-        lbls = lbls.flatten()
-
-        X = torch.as_tensor(feats, dtype=torch.float32)
-        Y = torch.as_tensor(lbls, dtype=torch.float32)
-
-        return X, Y
-
-    def make_dataset(self):
-        # - Drop N/As
-        self.data = self.data.dropna()
-        
-        # - Split the data into features and labels
-        self.feats = self.data.loc[:, self.feat_cols]
-        self.lbls = self.data.loc[:, self.lbl_cols]
-        
-        # - Calculate the number of channels
-        self.n_chnls = self.feats.shape[-1] // self.img_sz
-        
-        # - Normalize the features
-        self.feats = (self.feats - self.feats.mean()) / (self.feats.std() + EPSILON)
-        
-        # - Train the sampler on the train data to use in the course of training fo augmentation
-        t_strt = time.time()
-        print(f'- Fitting sampler ...')
-        self.sampler.fit(self.feats.values, self.lbls.values)
-        print(f'- Sampler training took {datetime.timedelta(seconds=time.time() - t_strt)}')
-
-
-class EncResNet(torch.nn.Module):
-    def __init__(self, model, in_channels: int,  out_size: int):
-        super().__init__()
-
-        self.mdl = model
-        self.in_chnls = in_channels
-        self.out_sz = out_size
-
-        self.make_model()
-
-    def make_model(self):
-        fst_lyr = self.mdl.conv1
-        self.mdl.conv1 = torch.nn.Conv2d(
-            self.in_chnls,
-            fst_lyr.out_channels,
-            kernel_size=(fst_lyr.kernel_size[0], fst_lyr.kernel_size[1]),
-            stride=(fst_lyr.stride[0], fst_lyr.stride[1]),
-            padding=fst_lyr.padding,
-            bias=False if fst_lyr.bias is None else fst_lyr.bias
-        )
-
-        lst_lyr = self.mdl.fc
-        self.mdl.fc = torch.nn.Linear(
-            lst_lyr.in_features,
-            self.out_sz
-        )
-
-    def forward(self, x):
-        x = self.mdl(x)
-        return x
-
-
-def freeze_params(params: list):
-    for param in params:
-        param.requires_grad = False
 
 
 # - Windows paths

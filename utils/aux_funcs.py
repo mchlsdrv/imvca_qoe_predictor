@@ -32,6 +32,11 @@ from configs.params import (
 )
 
 
+def freeze_params(params: list):
+    for param in params:
+        param.requires_grad = False
+
+
 def plot_losses(train_losses, val_losses, save_dir: pathlib.Path):
     # - Plot the train / val losses
     plt.plot(train_losses, label='train')
