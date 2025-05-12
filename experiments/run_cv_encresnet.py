@@ -1,18 +1,32 @@
 import itertools
 import os
 import datetime
+import pathlib
 
-from configs.params import PACKET_SIZE_FEATURES, PIAT_FEATURES, MODELS, OUTPUT_DIR, EXPERIMENTS_DIR, LABELS
+from configs.params import PACKET_SIZE_FEATURES, PIAT_FEATURES, MODELS,  # OUTPUT_DIR, EXPERIMENTS_DIR, LABELS
+    LABELS
 from utils.train_utils import run_cv
 
 MODEL_NAME = 'EncResNet'
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-FEATURES = [('all', [*PIAT_FEATURES, *PACKET_SIZE_FEATURES])]
+FEATURES = ['all']
+# FEATURES = [('all', [*PIAT_FEATURES, *PACKET_SIZE_FEATURES])]
 
 N_CV_FOLDS = 10
 
+
+DATA_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted')
+EXPERIMENTS_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\experiments')
+OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\output')
+
+
+LABELS = [
+    'brisque',
+    'piqe',
+    'fps',
+]
 
 def main():
     for (lbl, (feat_typ, feats)) in itertools.product(LABELS, FEATURES):
