@@ -25,7 +25,7 @@ def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
 
 def load_checkpoint(model, checkpoint_file: str or pathlib.Path):
     print('=> Loading checkpoint ...')
-    checkpoint = torch.load(checkpoint_file)
+    checkpoint = torch.load(checkpoint_file, weights_only=True)
     model.load_state_dict(checkpoint['state_dict'])
 
 

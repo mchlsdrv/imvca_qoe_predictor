@@ -5,17 +5,15 @@ import time
 
 import numpy as np
 import pandas as pd
+import sklearn
 import torch
-import torchvision.models as mdls
-import torchvision.transforms as transforms
-from torchvision.models import ResNet18_Weights
+import torchvision
 from tqdm import tqdm
 
 from configs.params import EPSILON
 from utils.data_utils import get_train_val_split
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint
-from sklearn.ensemble import RandomForestRegressor as RFR
 
 
 class EncDS(torch.utils.data.Dataset):
@@ -26,16 +24,15 @@ class EncDS(torch.utils.data.Dataset):
         self.feat_cols = features
         self.lbl_cols = labels
         self.img_sz = image_size
-        self.sampler = RFR(n_estimators=10, max_depth=10)
+        self.sampler = sklearn.ensemble.RandomForestRegressor(n_estimators=10, max_depth=10)
         self.p_smpl = p_sample
         
-        self.feats = None #data.loc[:, features]
-        self.lbls = None #data.loc[:, labels]
-        self.n_chnls = None #self.feats.shape[-1] // self.img_sz
+        self.feats = None
+        self.lbls = None
+        self.n_chnls = None
         
         self.make_dataset()
 
-        
     def __len__(self):
         return len(self.data) - self.img_sz
         
@@ -66,7 +63,7 @@ class EncDS(torch.utils.data.Dataset):
 
     def make_dataset(self):
         # - Drop N/As
-        self.data.dropna(inplace=True)
+        self.data = self.data.dropna()
         
         # - Split the data into features and labels
         self.feats = self.data.loc[:, self.feat_cols]
@@ -100,10 +97,10 @@ class EncResNet(torch.nn.Module):
         self.mdl.conv1 = torch.nn.Conv2d(
             self.in_chnls,
             fst_lyr.out_channels,
-            kernel_size=fst_lyr.kernel_size,
-            stride=fst_lyr.stride,
+            kernel_size=(fst_lyr.kernel_size[0], fst_lyr.kernel_size[1]),
+            stride=(fst_lyr.stride[0], fst_lyr.stride[1]),
             padding=fst_lyr.padding,
-            bias=fst_lyr.padding
+            bias=False if fst_lyr.bias is None else fst_lyr.bias
         )
 
         lst_lyr = self.mdl.fc
@@ -117,22 +114,24 @@ class EncResNet(torch.nn.Module):
         return x
 
 
-
 def freeze_params(params: list):
     for param in params:
         param.requires_grad = False
 
 
+# - Windows paths
+TRAIN_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
+TEST_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
+OUTPUT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\experiments\\results\\convnet')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_features_labels.csv')
-TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_features_labels.csv')
 LABELS = ['brisque', 'piqe', 'fps']
 PIAT_FEATURES = [f'piat_{i}' for i in range(1, 351)]
 PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
 FEATURES = PCKT_SZ_FEATURES
 IMAGE_SIZE = 35
 N_FREEZE = 5
-MODEL = mdls.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+MODEL = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
 LAYERS_TO_FREEZE = [
     'conv1',
     'bn1',
@@ -140,12 +139,10 @@ LAYERS_TO_FREEZE = [
 ]
 
 LR = 1e-4
-EPOCHS = 10
+EPOCHS = 1
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = torch.nn.MSELoss()
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/experiments/results/convnet}')
-os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, output_dir: pathlib.Path):
@@ -209,15 +206,17 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
 
 
 def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, device: torch.device):
+    model.eval()
     errors = []
-    for (X, Y) in test_data:
-        X = X.to(device)
+    with torch.no_grad():
+        for (X, Y) in test_data:
+            X = X.to(device)
 
-        outputs = model(X)
+            outputs = model(X)
 
-        btch_errs = calc_errors(true=Y, predicted=outputs.item())
+            btch_errs = calc_errors(true=Y.flatten(), predicted=outputs.cpu().numpy().flatten())
 
-        errors.extend(btch_errs)
+            errors.extend(btch_errs)
 
     errors = np.array(errors)
 
@@ -254,7 +253,7 @@ def main():
 
     # >  Val data
     val_ds = EncDS(
-        data=train_df,
+        data=val_df,
         features=PCKT_SZ_FEATURES,
         labels=LABELS,
         image_size=IMAGE_SIZE
@@ -273,6 +272,7 @@ def main():
         in_channels=len(PCKT_SZ_FEATURES) // IMAGE_SIZE,
         out_size=IMAGE_SIZE * len(LABELS)
     )
+    mdl.to(DEVICE)
 
     # >  If this parameter is supplied - freeze the corresponding layers
     if isinstance(LAYERS_TO_FREEZE, list):
@@ -319,6 +319,8 @@ def main():
         test_data=test_dl,
         device=DEVICE
     )
+    print(f'Final errors: {errs}')
+
 
 if __name__ == '__main__':
     main()
