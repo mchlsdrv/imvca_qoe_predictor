@@ -37,6 +37,12 @@ def freeze_params(params: list):
         param.requires_grad = False
 
 
+def freeze_layers(model: torch.nn.Module, layers: list):
+    for lyr in layers:
+        print(f'- Freezing layer: {lyr}')
+        eval(f'freeze_params(model.{lyr}.parameters())')
+
+
 def plot_losses(train_losses, val_losses, save_dir: pathlib.Path):
     # - Plot the train / val losses
     plt.plot(train_losses, label='train')
