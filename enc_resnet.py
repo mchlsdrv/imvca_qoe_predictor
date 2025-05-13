@@ -12,7 +12,7 @@ from models import EncResNet
 from utils.data_utils import get_train_val_split, EncDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint
-from utils.aux_funcs import freeze_layers, plot_losses
+from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 
 # - Windows paths
 # TRAIN_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
@@ -20,10 +20,16 @@ from utils.aux_funcs import freeze_layers, plot_losses
 # OUTPUT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\experiments\\results\\convnet')
 
 # - Mac paths
-TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
-TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
-OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
-CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+# TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
+# TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
+# OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
+# CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+
+# - Mac paths
+TRAIN_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
+TEST_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
+OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor//output/enc_resnet/train_{TS}')
+CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
 
 
 LABELS = ['brisque', 'piqe', 'fps']
@@ -32,6 +38,7 @@ MICRO_PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
 FEATURES = MICRO_PCKT_SZ_FEATURES
 IMAGE_SIZE = 35
 N_LAYERS_TO_FREEZE = 5
+PRED_THRESHOLD = 1
 MODEL = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
 LAYERS_TO_FREEZE = [
     'conv1',
@@ -40,7 +47,7 @@ LAYERS_TO_FREEZE = [
 ]
 
 LR = 1e-4
-EPOCHS = 1
+EPOCHS = 100
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = torch.nn.MSELoss()
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -51,13 +58,15 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     best_loss = np.inf
     train_losses = np.array([])
     val_losses = np.array([])
+    p_drop = 0.0
     for epch in tqdm(range(1, epochs + 1)):
+        p_drop = get_p_drop(p_drop=p_drop, epoch=epch)
         train_total_loss = 0.0
         for (X, Y) in train_data:
             X = X.to(device)
             Y = Y.to(device)
 
-            outputs = model(X)
+            outputs = model(X, p_drop)
 
             loss = loss_function(Y, outputs)
 
@@ -72,15 +81,16 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
 
         model.eval()
         val_total_loss = 0.0
-        for (X, Y) in val_data:
-            X = X.to(device)
-            Y = Y.to(device)
+        with torch.no_grad():
+            for (X, Y) in val_data:
+                X = X.to(device)
+                Y = Y.to(device)
 
-            outputs = model(X)
+                outputs = model(X, p_drop)
 
-            loss = loss_function(Y, outputs)
+                loss = loss_function(Y, outputs)
 
-            val_total_loss += loss.item()
+                val_total_loss += loss.item()
 
         val_mean_btch_loss = val_total_loss / len(val_data)
         val_losses = np.append(val_losses, val_mean_btch_loss)
@@ -108,21 +118,23 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     )
 
 
-def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, sampler = None, pred_threshold: float = 10):
+def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, sampler = None, pred_threshold: float = 1):
+    p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
     with torch.no_grad():
         for (X, Y) in test_data:
             X = X.to(device)
 
-            outputs = model(X)
+            outputs = model(X, p_drop)
 
             # - Replace the 0's with samples from the sampler model
             preds = outputs.cpu().numpy().flatten()
-            if sampler is not None:
+            low_vals_idxs = np.argwhere(preds < pred_threshold)
+            if sampler is not None and low_vals_idxs.any():
                 X = np.hstack(X.cpu().numpy()[0])
-                Y_smpl = sampler.predict(X).flatten()
-                preds[preds < pred_threshold] = Y_smpl[np.argwhere(preds < pred_threshold)]
+                Y_smpl = sampler.predict(X).T.flatten()
+                preds[preds < pred_threshold] = Y_smpl[low_vals_idxs].flatten()
 
             btch_errs = calc_errors(
                 true=Y.flatten(),
@@ -183,16 +195,17 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     )
 
     # >  Get the model
+    head_mdl = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
     mdl = EncResNet(
-        model=MODEL,
+        head_model=head_mdl,
         in_channels=len(features) // image_size,
         out_size=image_size * len(labels)
     )
-    mdl.to(device)
-
     # >  If this parameter is supplied - freeze the corresponding layers
     if isinstance(layers_to_freeze, list):
         freeze_layers(model=mdl.mdl, layers=layers_to_freeze)
+
+    mdl.to(device)
 
     # >  Train the model
     run_train(
@@ -233,6 +246,7 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
         model=mdl,
         test_data=test_dl,
         sampler=test_ds.sampler,
+        pred_threshold=PRED_THRESHOLD,
         labels=labels,
         device=device
     )

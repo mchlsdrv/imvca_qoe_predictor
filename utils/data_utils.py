@@ -77,7 +77,7 @@ class EncDS(torch.utils.data.Dataset):
 
         # - Train the sampler on the train data to use in the course of training fo augmentation
         t_strt = time.time()
-        print(f'> Fitting sampler ...')
+        print(f'\n> Fitting sampler ...')
         self.sampler.fit(self.feats.values, self.lbls.values)
         print(f'\t- Sampler training took {datetime.timedelta(seconds=time.time() - t_strt)}')
 

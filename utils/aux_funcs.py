@@ -42,6 +42,10 @@ def freeze_layers(model: torch.nn.Module, layers: list):
         print(f'- Freezing layer: {lyr}')
         eval(f'freeze_params(model.{lyr}.parameters())')
 
+def get_p_drop(p_drop: float, epoch: int):
+    p_drop = DROPOUT_P * (epoch // DROPOUT_START) if p_drop < DROPOUT_P_MAX else DROPOUT_P_MAX
+    return p_drop
+
 
 def plot_losses(train_losses, val_losses, save_dir: pathlib.Path):
     # - Plot the train / val losses

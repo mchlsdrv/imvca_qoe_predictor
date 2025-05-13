@@ -13,10 +13,10 @@ plt.style.use('ggplot')
 
 
 class EncResNet(torch.nn.Module):
-    def __init__(self, model, in_channels: int,  out_size: int):
+    def __init__(self, head_model, in_channels: int,  out_size: int):
         super().__init__()
 
-        self.mdl = model
+        self.mdl = head_model
         self.in_chnls = in_channels
         self.out_sz = out_size
 
@@ -39,8 +39,9 @@ class EncResNet(torch.nn.Module):
             self.out_sz
         )
 
-    def forward(self, x):
+    def forward(self, x, p_drop):
         x = self.mdl(x)
+        x = torch.nn.functional.dropout(x, p=p_drop, training=self.training)
         return x
 
 

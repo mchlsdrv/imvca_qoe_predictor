@@ -6,7 +6,7 @@ from utils.data_utils import build_test_datasets
 # DATA_ROOT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted')
 
 # - Mac path
-DATA_ROOT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted')
+DATA_ROOT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted')
 
 DATA_NAMES = ['all', 'piat', 'packet_size']
 
