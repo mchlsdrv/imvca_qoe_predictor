@@ -23,6 +23,7 @@ from utils.aux_funcs import freeze_layers, plot_losses
 TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
 TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
 OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
+CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
 
 
 LABELS = ['brisque', 'piqe', 'fps']
@@ -67,7 +68,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
             train_total_loss += loss.item()
         train_mean_btch_loss = train_total_loss / len(train_data)
         train_losses = np.append(train_losses, train_mean_btch_loss)
-        print(f'> Mean train loss for epoch {epch}: {train_mean_btch_loss}')
+        print(f'\n> Mean train loss for epoch {epch}: {train_mean_btch_loss}')
 
         model.eval()
         val_total_loss = 0.0
@@ -107,24 +108,35 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     )
 
 
-def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, device: torch.device):
+def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, sampler = None, pred_threshold: float = 10):
     model.eval()
-    errors = []
+    errors_df = pd.DataFrame()
     with torch.no_grad():
         for (X, Y) in test_data:
             X = X.to(device)
 
             outputs = model(X)
 
-            btch_errs = calc_errors(true=Y.flatten(), predicted=outputs.cpu().numpy().flatten())
+            # - Replace the 0's with samples from the sampler model
+            preds = outputs.cpu().numpy().flatten()
+            if sampler is not None:
+                X = np.hstack(X.cpu().numpy()[0])
+                Y_smpl = sampler.predict(X).flatten()
+                preds[preds < pred_threshold] = Y_smpl[np.argwhere(preds < pred_threshold)]
 
-            errors.extend(btch_errs)
+            btch_errs = calc_errors(
+                true=Y.flatten(),
+                predicted=preds.flatten()
+            )
 
-    errors = np.array(errors)
+            # - As the outputs are in the form [BRISQE_ERRORS | PIQE_ERRORS | FPS_ERRORS] we need to reshape and transpose them
+            btch_errs = btch_errs.reshape(3, -1).T
 
-    print(f'> Mean test errors: {errors.mean():.3f}+/-{errors.std():.4f}')
+            errors_df = pd.concat([errors_df, pd.DataFrame(columns=labels, data=btch_errs)])
 
-    return errors
+    print(f'> Test stats:\n{errors_df.describe()}')
+
+    return errors_df.reset_index(drop=True)
 
 
 def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float, batch_size: int, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
@@ -188,7 +200,7 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
         epochs=train_epochs,
         train_data=train_dl,
         val_data=val_dl,
-        optimizer=optimizer(filter(lambda p: p.requires_grad, mdl.parameters()), lr=learning_rate),
+        optimizer=optimizer(filter(lambda p: p.requires_grad, mdl.parameters()), lr=initial_learning_rate),
         loss_function=loss_function,
         device=device,
         save_dir=save_dir
@@ -217,20 +229,28 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     )
 
     # >  Test the model
-    errs = run_test(
+    errs_df = run_test(
         model=mdl,
         test_data=test_dl,
+        sampler=test_ds.sampler,
+        labels=labels,
         device=device
     )
-    return errs
+    return errs_df
+
 
 def run_cv(cv_root_dir: pathlib.Path):
-    for root, dirs, files in os.walk(cv_root_dir):
-        root_dir = pathlib.Path(root)
-        for fl in files:
-            train_test(
-                train_data_file=root_dir / 'train_data.csv',
-                test_data_file=root_dir / 'test_data.csv',
+    cv_fld = 1
+    cv_dirs = os.listdir(cv_root_dir)
+    errors_df = pd.DataFrame()
+    save_dir = OUTPUT_DIR / f'{len(cv_dirs)}_cv_{TS}'
+    for cv_dir in tqdm(cv_dirs):
+        train_data_fl = cv_root_dir / cv_dir / 'train_data.csv'
+        test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
+        if train_data_fl.is_file() and test_data_fl.is_file():
+            cv_errs_df = train_test(
+                train_data_file=train_data_fl,
+                test_data_file=test_data_fl,
                 features=FEATURES,
                 labels=LABELS,
                 image_size=IMAGE_SIZE,
@@ -241,11 +261,15 @@ def run_cv(cv_root_dir: pathlib.Path):
                 batch_size=BATCH_SIZE,
                 layers_to_freeze=LAYERS_TO_FREEZE,
                 device=DEVICE,
-                save_dir=SAVED
+                save_dir=save_dir / f'cv{cv_fld}'
             )
 
-        pass
+            errors_df = pd.concat([errors_df, cv_errs_df])
+            cv_fld += 1
+
+    errors_df.reset_index(drop=True)
+    errors_df.to_csv(save_dir / 'final_errors.csv', index=False)
 
 
 if __name__ == '__main__':
-    run_cv()
+    run_cv(cv_root_dir=CV_ROOT_DIR)

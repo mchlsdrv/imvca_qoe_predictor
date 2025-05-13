@@ -22,6 +22,37 @@ b
 c = np.array(list(map(lambda x: x.T, b)))
 c
 
+c = np.array(
+    [
+        [1, 300, 3 ], 
+        [100, 200, 7 ], 
+        [9, 5, 400],
+        [8, 14, 12],
+        [3, 1, 10],
+    ]
+)
+c
+c_flt = c.flatten()
+c_flt
+d = np.array(
+    [
+        [1, 0, 3 ], 
+        [0, 0, 7 ], 
+        [9, 5, 0],
+        [8, 14, 12],
+        [3, 1, 10],
+    ]
+)
+d_flt = d.flatten()
+np.argwhere(d_flt == 0).flatten()
+d_flt[d_flt == 0] = c_flt[np.argwhere(d_flt == 0).flatten()]
+d_flt
+
+mu = d.mean(axis=0)
+mu
+d[d == 0] = mu
+d
+d.reshape(3, -1).T
 a = pd.DataFrame({'A': [1, 2, 3], 'B': [4, 5, 6], 'C': [7, 8, 9]})
 a.iloc[0:3, :].T.values.flatten()
 a.iloc[0:3, :].values.flatten()
