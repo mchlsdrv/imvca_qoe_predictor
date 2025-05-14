@@ -1,3 +1,4 @@
+import itertools
 import os
 import pathlib
 
@@ -20,16 +21,16 @@ from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 # OUTPUT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\experiments\\results\\convnet')
 
 # - Mac paths
-# TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
-# TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
-# OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
-# CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
+TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
+OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
+CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
 
 # - Mac paths
-TRAIN_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
-TEST_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
-OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor//output/enc_resnet/train_{TS}')
-CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+# TRAIN_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
+# TEST_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
+# OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor//output/enc_resnet/train_{TS}')
+# CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
 
 
 LABELS = ['brisque', 'piqe', 'fps']
@@ -47,7 +48,7 @@ LAYERS_TO_FREEZE = [
 ]
 
 LR = 1e-4
-EPOCHS = 100
+EPOCHS = 1
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = torch.nn.MSELoss()
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -118,37 +119,59 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     )
 
 
-def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, sampler = None, pred_threshold: float = 1):
+def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path, sampler = None, pred_threshold: float = 1):
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
+    metadata_df = pd.DataFrame()
     with torch.no_grad():
         for (X, Y) in test_data:
             X = X.to(device)
 
+            # - Get the predictions
             outputs = model(X, p_drop)
 
             # - Replace the 0's with samples from the sampler model
-            preds = outputs.cpu().numpy().flatten()
-            low_vals_idxs = np.argwhere(preds < pred_threshold)
+            pred = outputs.cpu().numpy().flatten()
+            low_vals_idxs = np.argwhere(pred < pred_threshold)
             if sampler is not None and low_vals_idxs.any():
                 X = np.hstack(X.cpu().numpy()[0])
                 Y_smpl = sampler.predict(X).T.flatten()
-                preds[preds < pred_threshold] = Y_smpl[low_vals_idxs].flatten()
+                pred[pred < pred_threshold] = Y_smpl[low_vals_idxs].flatten()
 
+            # - Replace the 0's with mean value for each of the labels
+            true = Y.numpy().reshape(len(labels), -1).T
+            true_means = true.mean(axis=0)
+            low_vals_idxs = np.argwhere(true < 1).reshape(-1, 2)
+            if low_vals_idxs.any():
+                for (lw_x, lw_y) in low_vals_idxs:
+                    true[lw_x, lw_y] = true_means[lw_y]
+            true = true.T.flatten()
+
+            # - Calculate errors
             btch_errs = calc_errors(
-                true=Y.flatten(),
-                predicted=preds.flatten()
+                true=true,
+                predicted=pred
             )
 
             # - As the outputs are in the form [BRISQE_ERRORS | PIQE_ERRORS | FPS_ERRORS] we need to reshape and transpose them
             btch_errs = btch_errs.reshape(3, -1).T
 
+            # - Add the errors to history
             errors_df = pd.concat([errors_df, pd.DataFrame(columns=labels, data=btch_errs)])
+
+            # - Add the metadata to history
+            metadata_columns = [f'{typ}_{lbl}' for (typ, lbl) in itertools.product(['true', 'pred'], labels)]
+
+            metadata_df = pd.concat([metadata_df, pd.DataFrame(columns=metadata_columns, data=np.hstack([true.reshape(3, -1).T, pred.reshape(3, -1).T]))])
 
     print(f'> Test stats:\n{errors_df.describe()}')
 
-    return errors_df.reset_index(drop=True)
+    # - Save the metadata
+    metadata_df.reset_index(inplace=True, drop=True)
+    metadata_df.to_csv(save_dir / 'metadata.csv', index=False)
+
+    return errors_df.reset_index(drop=True), metadata_df
 
 
 def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float, batch_size: int, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
@@ -242,13 +265,14 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     )
 
     # >  Test the model
-    errs_df = run_test(
+    errs_df, _ = run_test(
         model=mdl,
         test_data=test_dl,
         sampler=test_ds.sampler,
         pred_threshold=PRED_THRESHOLD,
         labels=labels,
-        device=device
+        device=device,
+        save_dir=save_dir
     )
     return errs_df
 
