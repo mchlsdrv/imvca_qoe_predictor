@@ -17,7 +17,7 @@ from configs.params import OUTLIER_TH, EPSILON
 
 
 class EncDS(torch.utils.data.Dataset):
-    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, p_sample: float = 0.1):
+    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, chanel_mode: bool = False, p_sample: float = 0.1):
         super().__init__()
 
         self.data = data
@@ -26,6 +26,7 @@ class EncDS(torch.utils.data.Dataset):
         self.img_sz = image_size
         self.sampler = sklearn.ensemble.RandomForestRegressor(n_estimators=10, max_depth=10)
         self.p_smpl = p_sample
+        self.chnl_md = chanel_mode
 
         self.feats = None
         self.lbls = None
@@ -48,11 +49,9 @@ class EncDS(torch.utils.data.Dataset):
             feats += np.random.randn(*feats.shape)
             lbls = self.sampler.predict(feats.T)
 
-        try:
+        if self.chnl_md:
             feats = feats.reshape(self.n_chnls, self.img_sz, self.img_sz)
             feats = np.array(list(map(lambda x: x.T, feats)))  # change the order of the features to represent joint events
-        except Exception as err:
-            print(err)
 
         lbls = lbls.flatten()
 

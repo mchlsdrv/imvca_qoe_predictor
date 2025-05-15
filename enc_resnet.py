@@ -192,7 +192,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
         data=train_df,
         features=features,
         labels=labels,
-        image_size=image_size
+        image_size=image_size,
+        chanel_mode=True
     )
     train_dl = torch.utils.data.DataLoader(
         train_ds,
@@ -207,7 +208,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
         data=val_df,
         features=features,
         labels=labels,
-        image_size=image_size
+        image_size=image_size,
+        chanel_mode=True
     )
     val_dl = torch.utils.data.DataLoader(
         val_ds,
@@ -254,7 +256,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
         data=test_data_df,
         features=features,
         labels=labels,
-        image_size=image_size
+        image_size=image_size,
+        chanel_mode=True
     )
     test_dl = torch.utils.data.DataLoader(
         test_ds,
