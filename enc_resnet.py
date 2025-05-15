@@ -15,22 +15,23 @@ from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint
 from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 
+EXP_NAME = 'pck_sz'
 # - Windows paths
 # TRAIN_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
 # TEST_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
 # OUTPUT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\experiments\\results\\convnet')
 
 # - Mac paths
-TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
-TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
-OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
-CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+# TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
+# TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
+# OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
+# CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
 
-# - Mac paths
-# TRAIN_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
-# TEST_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
-# OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor//output/enc_resnet/train_{TS}')
-# CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+# - Linux paths
+TRAIN_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
+TEST_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
+OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor//output/enc_resnet')
+CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
 
 
 LABELS = ['brisque', 'piqe', 'fps']
@@ -38,17 +39,17 @@ MICRO_PIAT_FEATURES = [f'piat_{i}' for i in range(1, 351)]
 MICRO_PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
 FEATURES = MICRO_PCKT_SZ_FEATURES
 IMAGE_SIZE = 35
-N_LAYERS_TO_FREEZE = 5
+N_LAYERS_TO_FREEZE = 2
 PRED_THRESHOLD = 1
 MODEL = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
 LAYERS_TO_FREEZE = [
-    'conv1',
-    'bn1',
+    # 'conv1',
+    # 'bn1',
     *[f'layer{idx}' for idx in range(1, N_LAYERS_TO_FREEZE)]
 ]
 
 LR = 1e-4
-EPOCHS = 1
+EPOCHS = 100
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = torch.nn.MSELoss()
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -284,7 +285,7 @@ def run_cv(cv_root_dir: pathlib.Path):
     cv_fld = 1
     cv_dirs = os.listdir(cv_root_dir)
     errors_df = pd.DataFrame()
-    save_dir = OUTPUT_DIR / f'{len(cv_dirs)}_cv_{TS}'
+    save_dir = OUTPUT_DIR / f'{EXP_NAME}_{len(cv_dirs)}_cv_{TS}'
     for cv_dir in tqdm(cv_dirs):
         train_data_fl = cv_root_dir / cv_dir / 'train_data.csv'
         test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
