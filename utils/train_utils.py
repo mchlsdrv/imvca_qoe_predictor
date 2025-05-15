@@ -29,6 +29,13 @@ def load_checkpoint(model, checkpoint_file: str or pathlib.Path):
     model.load_state_dict(checkpoint['state_dict'])
 
 
+def reduce_lr(optimizer: torch.optim, lr_reduce_factor):
+    old_lr = optimizer.param_groups[0]['lr']
+    new_lr = old_lr * lr_reduce_factor
+    optimizer.param_groups[0]['lr'] = new_lr
+    print(f'\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}')
+
+
 def get_train_val_losses(
         model: torch.nn.Module, epochs: int,
         train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader,
