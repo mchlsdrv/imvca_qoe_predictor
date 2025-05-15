@@ -8,23 +8,26 @@ import torch
 import torchvision
 from tqdm import tqdm
 
-from configs.params import TS, BATCH_SIZE
+from configs.params import TS, BATCH_SIZE, LR_REDUCTION_FCTR, LR_REDUCTION_FREQ
 from models import EncResNet
 from utils.data_utils import get_train_val_split, EncDS
 from utils.regression_utils import calc_errors
-from utils.train_utils import save_checkpoint, load_checkpoint
+from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr
 from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 
+EXP_NAME = 'piat'
+# EXP_NAME = 'piat_pckt_sz'
 # - Windows paths
-# TRAIN_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
-# TEST_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
-# OUTPUT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\experiments\\results\\convnet')
+TRAIN_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
+TEST_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
+OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\output\\enc_resnet')
+CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_cv_10_folds')
 
 # - Mac paths
-TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
-TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
-OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
-CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+# TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
+# TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
+# OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
+# CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
 
 # - Mac paths
 # TRAIN_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
@@ -36,10 +39,11 @@ CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predi
 LABELS = ['brisque', 'piqe', 'fps']
 MICRO_PIAT_FEATURES = [f'piat_{i}' for i in range(1, 351)]
 MICRO_PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
-FEATURES = MICRO_PCKT_SZ_FEATURES
+FEATURES = MICRO_PIAT_FEATURES
+# FEATURES = [*MICRO_PCKT_SZ_FEATURES, *MICRO_PIAT_FEATURES]
 IMAGE_SIZE = 35
 N_LAYERS_TO_FREEZE = 5
-PRED_THRESHOLD = 1
+PRED_THRESHOLD = 100
 MODEL = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
 LAYERS_TO_FREEZE = [
     'conv1',
@@ -48,7 +52,7 @@ LAYERS_TO_FREEZE = [
 ]
 
 LR = 1e-4
-EPOCHS = 1
+EPOCHS = 100
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = torch.nn.MSELoss()
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -62,6 +66,11 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     p_drop = 0.0
     for epch in tqdm(range(1, epochs + 1)):
         p_drop = get_p_drop(p_drop=p_drop, epoch=epch)
+        if epch > 0 and epch % LR_REDUCTION_FREQ == 0:
+            reduce_lr(
+                optimizer=optimizer,
+                lr_reduce_factor=LR_REDUCTION_FCTR
+            )
         train_total_loss = 0.0
         for (X, Y) in train_data:
             X = X.to(device)
@@ -119,7 +128,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     )
 
 
-def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path, sampler = None, pred_threshold: float = 1):
+def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path, sampler=None, pred_threshold: float = 1):
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
@@ -284,7 +293,7 @@ def run_cv(cv_root_dir: pathlib.Path):
     cv_fld = 1
     cv_dirs = os.listdir(cv_root_dir)
     errors_df = pd.DataFrame()
-    save_dir = OUTPUT_DIR / f'{len(cv_dirs)}_cv_{TS}'
+    save_dir = OUTPUT_DIR / f'{EXP_NAME}_{len(cv_dirs)}_cv_{TS}'
     for cv_dir in tqdm(cv_dirs):
         train_data_fl = cv_root_dir / cv_dir / 'train_data.csv'
         test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
