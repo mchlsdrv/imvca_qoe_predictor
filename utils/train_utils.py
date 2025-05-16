@@ -414,3 +414,14 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
         - Test: {0.0 if not len(test_data_reductions) else test_data_reductions.mean():.2f}+/-{0.0 if not len(test_data_reductions) else test_data_reductions.std():.3f}
     ''', file=log_file)
     return results
+
+
+class MAPELoss(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @staticmethod
+    def forward(output, target):
+        criterion = 100 / len(output) * (1 - output / target).abs().sum()
+
+        return criterion
