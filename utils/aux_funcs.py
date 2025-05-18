@@ -43,8 +43,11 @@ def freeze_layers(model: torch.nn.Module, layers: list):
         eval(f'freeze_params(model.{lyr}.parameters())')
 
 def get_p_drop(p_drop: float, epoch: int):
-    p_drop = DROPOUT_P * (epoch // DROPOUT_START) if p_drop < DROPOUT_P_MAX else DROPOUT_P_MAX
-    return p_drop
+    old_p = p_drop
+    new_p = DROPOUT_P * (epoch // DROPOUT_START) if old_p < DROPOUT_P_MAX else DROPOUT_P_MAX
+    if new_p != old_p:
+        print(f'\n\t** (INFO) ** The p_drop changed from {old_p} -> {new_p}')
+    return new_p
 
 
 def plot_losses(train_losses, val_losses, save_dir: pathlib.Path):

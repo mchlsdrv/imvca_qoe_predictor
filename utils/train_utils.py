@@ -29,11 +29,31 @@ def load_checkpoint(model, checkpoint_file: str or pathlib.Path):
     model.load_state_dict(checkpoint['state_dict'])
 
 
-def reduce_lr(optimizer: torch.optim, lr_reduce_factor):
+def reduce_lr(optimizer: torch.optim, epoch: int, schedules: dict):
+    # - Get the current lr
     old_lr = optimizer.param_groups[0]['lr']
-    new_lr = old_lr * lr_reduce_factor
-    optimizer.param_groups[0]['lr'] = new_lr
-    print(f'\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}')
+    new_lr = old_lr
+
+    # - Get the epochs that the schedule is defined for
+    epch_keys = np.array(list(schedules.keys()))
+    schdl_key = np.argwhere(epoch > epch_keys).flatten()
+
+    # - If the epoch reached at least the lowest epoch
+    if schdl_key.any():
+        # - Choose the correct schedule for the current epoch
+        schdl = schedules.get(epch_keys[schdl_key.max()])
+
+        # - If the schedule is set to set a value at particular epoch
+        if schdl.get('mode') == 'set':
+            new_lr = schdl.get('lr')
+            optimizer.param_groups[0]['lr'] = new_lr
+
+        # - If the schedule is set to decrease linearly each epoch
+        elif schdl.get('mode') == 'reduce':
+            if old_lr > schdl.get('min_lr'):
+                new_lr = old_lr * schdl.get('factor')
+                optimizer.param_groups[0]['lr'] = new_lr
+    print(f'\n\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}' if old_lr != new_lr else '\n\t ** INFO ** The learning rate was not changed')
 
 
 def get_train_val_losses(
@@ -421,7 +441,7 @@ class MAPELoss(torch.nn.Module):
         super().__init__()
 
     @staticmethod
-    def forward(output, target):
-        criterion = 100 / len(output) * (1 - output / target).abs().sum()
+    def forward(target, preds):
+        criterion = 100 * (1 - preds / target).abs().mean()
 
         return criterion
