@@ -56,6 +56,17 @@ def reduce_lr(optimizer: torch.optim, epoch: int, schedules: dict):
     print(f'\n\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}' if old_lr != new_lr else '\n\t ** INFO ** The learning rate was not changed')
 
 
+def get_p_drop(p_drop: float, epoch: int, drop_schedule: dict):
+    drop_epchs = np.array(list(drop_schedule.keys()))
+    drop_epch_idx = np.argwhere(drop_epchs <= epoch)
+
+    if drop_epch_idx.any():
+        max_drop_epch_idx = drop_epch_idx.max()
+        p_drop = drop_schedule.get(max_drop_epch_idx)
+
+    return p_drop
+
+
 def get_train_val_losses(
         model: torch.nn.Module, epochs: int,
         train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader,
@@ -152,7 +163,7 @@ def get_train_val_losses(
     return train_losses, val_losses
 
 
-def train_model(model, epochs, train_data_loader, validation_data_loader, loss_function, optimizer, learning_rate, save_dir, tokenize: bool =False):
+def model_train(model, epochs, train_data_loader, validation_data_loader, loss_function, optimizer, learning_rate, save_dir, tokenize: bool = False):
     # - Train
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
@@ -179,7 +190,7 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
     np.save(save_dir / 'val_losses.npy', val_losses)
 
 
-def test_model(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, tokenize: bool = False, device: torch.device = torch.device('cpu')):
+def model_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, tokenize: bool = False, device: torch.device = torch.device('cpu')):
     y_true = np.array([])
     y_pred = np.array([])
     model.eval()
@@ -276,7 +287,7 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
                 # - Build the model
                 mdl = model(**model_params)
 
-                train_model(
+                model_train(
                     model=mdl,
                     epochs=nn_params.get('epochs'),
                     train_data_loader=train_data,
@@ -289,7 +300,7 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
                 )
 
                 # - Test the model
-                y_true, y_pred = test_model(
+                y_true, y_pred = model_test(
                     model=mdl,
                     data_loader=test_data,
                     tokenize=tokenize,
@@ -379,7 +390,6 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
         fld_idx += 1
 
     results.to_csv(save_dir / f'{n_folds}_folds_cv_results.csv')
-
 
     if test_objective == 'regression':
         mean_error = results.loc[:, "error (%)"].mean()

@@ -3,8 +3,8 @@ import pathlib
 import torch
 from sklearn import svm
 from sklearn.ensemble import RandomForestRegressor
-from xgboost import  XGBRegressor
-from catboost import  CatBoostRegressor
+from xgboost import XGBRegressor
+from catboost import CatBoostRegressor
 
 from models import QoENet1D, EncResNet
 
@@ -22,9 +22,9 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # - DATA -
 # --------
 # -- Platform
-PLATFORM = 'linux'
+# PLATFORM = 'linux'
 # PLATFORM = 'mac'
-# PLATFORM = 'windows'
+PLATFORM = 'windows'
 PATHS = {
     'linux': {
         'train_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv'),
@@ -79,7 +79,7 @@ LR = 5e-4
 LR_REDUCTION_FREQ = 20
 LR_REDUCTION_FCTR = 0.8
 LR_SCHEDULES = {
-    50: {'mode': 'set', 'lr': 0.0008},
+    20: {'mode': 'set', 'lr': 0.0008},
     80: {'mode': 'set', 'lr': 0.0005},
     100: {'mode': 'set', 'lr': 0.0001},
     140: {'mode': 'reduce', 'factor': 0.8, 'min_lr': 0.00001}
@@ -88,6 +88,13 @@ MOMENTUM = 0.5
 WEIGHT_DECAY = 1e-5
 DROPOUT_START = 80
 DROPOUT_DELTA = 25
+
+DROP_SCHEDULE = {
+    50: 0.01,
+    100: 0.1,
+    140: 0.2,
+}
+
 DROPOUT_P = 0.05
 DROPOUT_P_MAX = 0.3
 RBM_K_GIBBS_STEPS = 10
