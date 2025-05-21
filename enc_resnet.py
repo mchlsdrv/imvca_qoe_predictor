@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from configs.params import TS, BATCH_SIZE, LR_REDUCTION_FCTR, LR_REDUCTION_FREQ
 from models import EncResNet
-from utils.data_utils import get_train_val_split, EncDS
+from utils.data_utils import get_train_val_split, EncDS, EncRowDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
 from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
@@ -41,7 +41,7 @@ MICRO_PIAT_FEATURES = [f'piat_{i}' for i in range(1, 351)]
 MICRO_PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
 FEATURES = MICRO_PIAT_FEATURES
 # FEATURES = [*MICRO_PCKT_SZ_FEATURES, *MICRO_PIAT_FEATURES]
-IMAGE_SIZE = 35
+IMAGE_SIZE = 5
 N_LAYERS_TO_FREEZE = 4
 PRED_THRESHOLD = 1
 MODEL = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
@@ -197,7 +197,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     train_df, val_df = get_train_val_split(data=train_data_df, validation_proportion=0.2)
 
     # >  Train data
-    train_ds = EncDS(
+    # train_ds = EncDS(
+    train_ds=EncRowDS(
         data=train_df,
         features=features,
         labels=labels,
@@ -213,7 +214,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     )
 
     # >  Val data
-    val_ds = EncDS(
+    val_ds=EncRowDS(
+    # val_ds = EncDS(
         data=val_df,
         features=features,
         labels=labels,
@@ -232,8 +234,10 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     head_mdl = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
     mdl = EncResNet(
         head_model=head_mdl,
-        in_channels=len(features) // image_size,
-        out_size=image_size * len(labels)
+        in_channels=len(features) // image_size ** 2,
+        # in_channels=len(features) // image_size,
+        out_size=len(labels)
+        # out_size = image_size * len(labels)
     )
     # >  If this parameter is supplied - freeze the corresponding layers
     if isinstance(layers_to_freeze, list):
@@ -261,7 +265,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     test_data_df = test_data_df.loc[:, [*features, *labels]]
 
     # >  Train data
-    test_ds = EncDS(
+    test_ds=EncRowDS(
+    # test_ds = EncDS(
         data=test_data_df,
         features=features,
         labels=labels,

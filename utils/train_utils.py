@@ -421,7 +421,7 @@ class MAPELoss(torch.nn.Module):
         super().__init__()
 
     @staticmethod
-    def forward(output, target):
-        criterion = 100 / len(output) * (1 - output / target).abs().sum()
+    def forward(true, pred):
+        criterion = 100 * (1 - pred / true).abs().mean()
 
         return criterion
