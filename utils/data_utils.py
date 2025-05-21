@@ -105,7 +105,7 @@ class EncDS(torch.utils.data.Dataset):
         lbls = self.lbls.iloc[i_strt:i_end, :].T.values
 
         # - If we add noise to the data or not
-        if np.random.random() < self.p_smpl:
+        if np.random.random() > 1 - self.p_smpl:
             feats += np.random.randn(*feats.shape)
             lbls = self.sampler.predict(feats.T)
 

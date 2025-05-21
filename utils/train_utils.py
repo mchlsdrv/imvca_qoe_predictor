@@ -29,11 +29,42 @@ def load_checkpoint(model, checkpoint_file: str or pathlib.Path):
     model.load_state_dict(checkpoint['state_dict'])
 
 
-def reduce_lr(optimizer: torch.optim, lr_reduce_factor):
+def reduce_lr(optimizer: torch.optim, epoch: int, schedules: dict):
+    # - Get the current lr
     old_lr = optimizer.param_groups[0]['lr']
-    new_lr = old_lr * lr_reduce_factor
-    optimizer.param_groups[0]['lr'] = new_lr
-    print(f'\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}')
+    new_lr = old_lr
+
+    # - Get the epochs that the schedule is defined for
+    epch_keys = np.array(list(schedules.keys()))
+    schdl_key = np.argwhere(epoch > epch_keys).flatten()
+
+    # - If the epoch reached at least the lowest epoch
+    if schdl_key.any():
+        # - Choose the correct schedule for the current epoch
+        schdl = schedules.get(epch_keys[schdl_key.max()])
+
+        # - If the schedule is set to set a value at particular epoch
+        if schdl.get('mode') == 'set':
+            new_lr = schdl.get('lr')
+            optimizer.param_groups[0]['lr'] = new_lr
+
+        # - If the schedule is set to decrease linearly each epoch
+        elif schdl.get('mode') == 'reduce':
+            if old_lr > schdl.get('min_lr'):
+                new_lr = old_lr * schdl.get('factor')
+                optimizer.param_groups[0]['lr'] = new_lr
+    print(f'\n\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}' if old_lr != new_lr else '\n\t ** INFO ** The learning rate was not changed')
+
+
+def get_p_drop(p_drop: float, epoch: int, drop_schedule: dict):
+    drop_epchs = np.array(list(drop_schedule.keys()))
+    drop_epch_idx = np.argwhere(drop_epchs <= epoch)
+
+    if drop_epch_idx.any():
+        max_drop_epch_idx = drop_epch_idx.max()
+        p_drop = drop_schedule.get(max_drop_epch_idx)
+
+    return p_drop
 
 
 def get_train_val_losses(
@@ -108,7 +139,13 @@ def get_train_val_losses(
 
         val_losses = np.append(val_losses, btch_val_losses.mean())
 
-        plot_losses(train_losses=train_losses, val_losses=val_losses, save_dir=save_dir)
+        plot_losses(
+            train_losses=train_losses,
+            val_losses=val_losses,
+            train_stds=train_losses.std(),
+            val_stds=val_losses.std(),
+            save_dir=save_dir
+        )
 
         # - Save the checkpoint
         if epch > 0 and epch % checkpoint_save_frequency == 0:
@@ -132,7 +169,7 @@ def get_train_val_losses(
     return train_losses, val_losses
 
 
-def train_model(model, epochs, train_data_loader, validation_data_loader, loss_function, optimizer, learning_rate, save_dir, tokenize: bool =False):
+def model_train(model, epochs, train_data_loader, validation_data_loader, loss_function, optimizer, learning_rate, save_dir, tokenize: bool = False):
     # - Train
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
@@ -159,7 +196,7 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
     np.save(save_dir / 'val_losses.npy', val_losses)
 
 
-def test_model(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, tokenize: bool = False, device: torch.device = torch.device('cpu')):
+def model_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, tokenize: bool = False, device: torch.device = torch.device('cpu')):
     y_true = np.array([])
     y_pred = np.array([])
     model.eval()
@@ -256,7 +293,7 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
                 # - Build the model
                 mdl = model(**model_params)
 
-                train_model(
+                model_train(
                     model=mdl,
                     epochs=nn_params.get('epochs'),
                     train_data_loader=train_data,
@@ -269,7 +306,7 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
                 )
 
                 # - Test the model
-                y_true, y_pred = test_model(
+                y_true, y_pred = model_test(
                     model=mdl,
                     data_loader=test_data,
                     tokenize=tokenize,
@@ -359,7 +396,6 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
         fld_idx += 1
 
     results.to_csv(save_dir / f'{n_folds}_folds_cv_results.csv')
-
 
     if test_objective == 'regression':
         mean_error = results.loc[:, "error (%)"].mean()

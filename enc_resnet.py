@@ -8,107 +8,180 @@ import torch
 import torchvision
 from tqdm import tqdm
 
-from configs.params import TS, BATCH_SIZE, LR_REDUCTION_FCTR, LR_REDUCTION_FREQ
+from configs.params import (
+    TS,
+    BATCH_SIZE,
+    LR_SCHEDULES,
+    MICRO_PCKT_SZ_FEATURES,
+    MICRO_PIAT_FEATURES,
+    DEVICE,
+    CV_ROOT_DIR,
+    OUTPUT_DIR,
+    LABELS,
+    DROP_SCHEDULE
+)
 from models import EncResNet
 from utils.data_utils import get_train_val_split, EncDS, EncRowDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
 from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 
-EXP_NAME = 'piat'
-# EXP_NAME = 'piat_pckt_sz'
-# - Windows paths
-# TRAIN_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
-# TEST_DATA_PATH = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv')
-# OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\output\\enc_resnet')
-# CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_cv_10_folds')
 
-# - Mac paths
-TRAIN_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
-TEST_DATA_PATH = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
-OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet/train_{TS}')
-CV_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+# - LOCAL HYPERPARAMETERS
+# -- Features
+# EXP_NAME = 'piat_mape_loss'
+EXP_NAME = 'pckt_sz_mape_loss_no_weights'
+# EXP_NAME = 'pckt_sz_mape_loss_no_samp'
+if EXP_NAME.startswith('pckt_sz'):
+    FEATURES = MICRO_PCKT_SZ_FEATURES
+elif EXP_NAME.startswith('piat'):
+    FEATURES = MICRO_PIAT_FEATURES
+elif EXP_NAME.startswith('all'):
+    FEATURES = [*MICRO_PCKT_SZ_FEATURES, *MICRO_PIAT_FEATURES]
 
-# - Linux paths
-# TRAIN_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv')
-# TEST_DATA_PATH = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv')
-# OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor//output/enc_resnet')
-# CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+# -- Head model parameters
+MODEL = torchvision.models.resnet34
+# WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
 
+# MODEL = torchvision.models.resnet18
+# WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
+WEIGHTS = None
 
-LABELS = ['brisque', 'piqe', 'fps']
-MICRO_PIAT_FEATURES = [f'piat_{i}' for i in range(1, 351)]
-MICRO_PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
-FEATURES = MICRO_PIAT_FEATURES
-# FEATURES = [*MICRO_PCKT_SZ_FEATURES, *MICRO_PIAT_FEATURES]
-IMAGE_SIZE = 5
-N_LAYERS_TO_FREEZE = 4
-PRED_THRESHOLD = 1
-MODEL = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
-LAYERS_TO_FREEZE = [
-    # 'conv1',
-    # 'bn1',
-    *[f'layer{idx}' for idx in range(1, N_LAYERS_TO_FREEZE)]
-]
+IMAGE_SIZE = 7
+# IMAGE_SIZE = 35
 
-LR = 1e-4
-EPOCHS = 100
+LAYERS_TO_FREEZE = []
+# N_LAYERS_TO_FREEZE = 4
+# LAYERS_TO_FREEZE = [
+#     'conv1',
+#     'bn1',
+#     *[f'layer{idx}' for idx in range(1, N_LAYERS_TO_FREEZE)]
+# ]
+
+# -- Train parameters
+EPOCHS = 150
+INITIAL_LEARNING_RATE = 1e-3
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = MAPELoss()
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+AUG_P_DATA_SAMPLE = 0.1
+# - CHECKS
 # LOSS_FUNCTION(torch.as_tensor([50, 45, 17], dtype=torch.float32), torch.as_tensor([78, 35, 14], dtype=torch.float32))
+
+# for epch in [3, 20, 51, 81, 82, 83, 90]:
+#     reduce_lr(optimizer=OPTIMIZER, epoch=epch, schedules=LR_SCHEDULES)
+
+
+def replace_zeros_with_mean(y, n_labels: int, flatten: bool = False, to_tensor: bool = False):
+    # - Replace the 0's with mean value for each of the labels
+    y_shape = y.shape
+    no_zero_y = y.numpy().reshape(n_labels, -1).T
+    true_means = no_zero_y.mean(axis=0)
+    low_vals_idxs = np.argwhere(no_zero_y < 1).reshape(-1, 2)
+    if low_vals_idxs.any():
+        for (lw_x, lw_y) in low_vals_idxs:
+            no_zero_y[lw_x, lw_y] = true_means[lw_y]
+    if flatten:
+        no_zero_y = no_zero_y.T.flatten()
+    else:
+        no_zero_y = no_zero_y.reshape(y_shape)
+
+    if to_tensor:
+        no_zero_y = torch.as_tensor(no_zero_y, dtype=torch.float32)
+
+    return no_zero_y
+
 
 def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
     best_epch = 1
     best_loss = np.inf
-    train_losses = np.array([])
-    val_losses = np.array([])
+
+    # - History
+    train_loss_means, val_loss_means = np.array([]), np.array([])
+    train_loss_stds, val_loss_stds = np.array([]), np.array([])
+
     p_drop = 0.0
+
     for epch in tqdm(range(1, epochs + 1)):
-        p_drop = get_p_drop(p_drop=p_drop, epoch=epch)
-        if epch > 0 and epch % LR_REDUCTION_FREQ == 0:
-            reduce_lr(
-                optimizer=optimizer,
-                lr_reduce_factor=LR_REDUCTION_FCTR
-            )
-        train_total_loss = 0.0
+        p_drop = get_p_drop(
+            p_drop=p_drop,
+            epoch=epch,
+            drop_schedule=DROP_SCHEDULE
+        )
+        # if epch > 0 and epch % LR_REDUCTION_FREQ == 0:
+        reduce_lr(
+            optimizer=optimizer,
+            epoch=epch,
+            schedules=LR_SCHEDULES
+        )
+        train_btch_losses = np.array([])
         for (X, Y) in train_data:
             X = X.to(device)
+            Y = replace_zeros_with_mean(
+                y=Y,
+                n_labels=train_data.dataset.lbls.shape[-1],
+                flatten=False,
+                to_tensor=True
+            )
             Y = Y.to(device)
 
+            # - Zero gradients for each batch
+            optimizer.zero_grad()
+
+            # - Compute outputs
             outputs = model(X, p_drop)
 
+            # - Calculate the loss
             loss = loss_function(Y, outputs)
-
-            optimizer.zero_grad()
             loss.backward()
+
+            # - Adjust the weights
             optimizer.step()
 
-            train_total_loss += loss.item()
-        train_mean_btch_loss = train_total_loss / len(train_data)
-        train_losses = np.append(train_losses, train_mean_btch_loss)
-        print(f'\n> Mean train loss for epoch {epch}: {train_mean_btch_loss}')
+            train_btch_losses = np.append(train_btch_losses, loss.item())
+
+        train_btch_loss_mean, train_btch_loss_std = train_btch_losses.mean(), train_btch_losses.std()
+
+        train_loss_means = np.append(train_loss_means, train_btch_loss_mean)
+        train_loss_stds = np.append(train_loss_stds, train_btch_loss_std)
+
+        print(f'\n> Mean train loss for epoch {epch}: {train_btch_loss_mean:.5f}+/-{train_btch_loss_std:.6}')
 
         model.eval()
-        val_total_loss = 0.0
+        val_btch_losses = np.array([])
         with torch.no_grad():
             for (X, Y) in val_data:
                 X = X.to(device)
+                Y = replace_zeros_with_mean(
+                    y=Y,
+                    n_labels=val_data.dataset.lbls.shape[-1],
+                    flatten=False,
+                    to_tensor=True
+                )
                 Y = Y.to(device)
 
                 outputs = model(X, p_drop)
 
                 loss = loss_function(Y, outputs)
 
-                val_total_loss += loss.item()
+                val_btch_losses = np.append(val_btch_losses, loss.item())
 
-        val_mean_btch_loss = val_total_loss / len(val_data)
-        val_losses = np.append(val_losses, val_mean_btch_loss)
+        val_btch_loss_mean, val_btch_loss_std = val_btch_losses.mean(), val_btch_losses.std()
 
-        plot_losses(train_losses=train_losses, val_losses=val_losses, save_dir=save_dir)
+        val_loss_means = np.append(val_loss_means, val_btch_loss_mean)
+        val_loss_stds = np.append(val_loss_stds, val_btch_loss_std)
 
-        if val_mean_btch_loss < best_loss:
-            print(f'> Saving checkpoint for epoch {best_epch} with loss {val_mean_btch_loss:.5f} < {best_loss:.5f}')
+        print(f'\n> Mean val loss for epoch {epch}: {val_btch_loss_mean:.5f}+/-{val_btch_loss_std:.6}')
+
+        plot_losses(
+            train_losses=train_loss_means,
+            val_losses=val_loss_means,
+            train_stds=train_loss_stds,
+            val_stds=val_loss_stds,
+            save_dir=save_dir
+        )
+
+        if val_btch_loss_mean < best_loss:
+            print(f'> Saving checkpoint for epoch {best_epch} with loss {val_btch_loss_mean:.5f} < {best_loss:.5f}')
 
             save_checkpoint(
                 model=model,
@@ -117,7 +190,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
             )
 
             # - Update the best loss
-            best_loss = val_mean_btch_loss
+            best_loss = val_btch_loss_mean
             best_epch = epch
 
     # - Load the checkpoint with the best loss
@@ -128,7 +201,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     )
 
 
-def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path, sampler=None, pred_threshold: float = 1):
+def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path):
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
@@ -140,22 +213,16 @@ def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, lab
             # - Get the predictions
             outputs = model(X, p_drop)
 
-            # - Replace the 0's with samples from the sampler model
+            # - Get the preds
             pred = outputs.cpu().numpy().flatten()
-            low_vals_idxs = np.argwhere(pred < pred_threshold)
-            if sampler is not None and low_vals_idxs.any():
-                X = np.hstack(X.cpu().numpy()[0])
-                Y_smpl = sampler.predict(X).T.flatten()
-                pred[pred < pred_threshold] = Y_smpl[low_vals_idxs].flatten()
 
             # - Replace the 0's with mean value for each of the labels
-            true = Y.numpy().reshape(len(labels), -1).T
-            true_means = true.mean(axis=0)
-            low_vals_idxs = np.argwhere(true < 1).reshape(-1, 2)
-            if low_vals_idxs.any():
-                for (lw_x, lw_y) in low_vals_idxs:
-                    true[lw_x, lw_y] = true_means[lw_y]
-            true = true.T.flatten()
+            true = replace_zeros_with_mean(
+                y=Y,
+                n_labels=len(labels),
+                flatten=True,
+                to_tensor=False
+            )
 
             # - Calculate errors
             btch_errs = calc_errors(
@@ -183,7 +250,8 @@ def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, lab
     return errors_df.reset_index(drop=True), metadata_df
 
 
-def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float, batch_size: int, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
+def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
+               batch_size: int, weights, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
     # - Create the OUTPUT_DIR
     os.makedirs(save_dir, exist_ok=True)
     # - Train
@@ -203,7 +271,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
         features=features,
         labels=labels,
         image_size=image_size,
-        chanel_mode=True
+        chanel_mode=True,
+        p_sample=AUG_P_DATA_SAMPLE
     )
     train_dl = torch.utils.data.DataLoader(
         train_ds,
@@ -220,7 +289,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
         features=features,
         labels=labels,
         image_size=image_size,
-        chanel_mode=True
+        chanel_mode=True,
+        p_sample=AUG_P_DATA_SAMPLE
     )
     val_dl = torch.utils.data.DataLoader(
         val_ds,
@@ -231,7 +301,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     )
 
     # >  Get the model
-    head_mdl = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
+    head_mdl = head_model(weights=weights)
+    # head_mdl = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
     mdl = EncResNet(
         head_model=head_mdl,
         in_channels=len(features) // image_size ** 2,
@@ -242,7 +313,6 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     # >  If this parameter is supplied - freeze the corresponding layers
     if isinstance(layers_to_freeze, list):
         freeze_layers(model=mdl.mdl, layers=layers_to_freeze)
-
     mdl.to(device)
 
     # >  Train the model
@@ -271,7 +341,8 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
         features=features,
         labels=labels,
         image_size=image_size,
-        chanel_mode=True
+        chanel_mode=True,
+        p_sample=AUG_P_DATA_SAMPLE
     )
     test_dl = torch.utils.data.DataLoader(
         test_ds,
@@ -285,8 +356,6 @@ def train_test(train_data_file: pathlib.Path, test_data_file: pathlib.Path, feat
     errs_df, _ = run_test(
         model=mdl,
         test_data=test_dl,
-        sampler=test_ds.sampler,
-        pred_threshold=PRED_THRESHOLD,
         labels=labels,
         device=device,
         save_dir=save_dir
@@ -304,6 +373,7 @@ def run_cv(cv_root_dir: pathlib.Path):
         test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
         if train_data_fl.is_file() and test_data_fl.is_file():
             cv_errs_df = train_test(
+                head_model=MODEL,
                 train_data_file=train_data_fl,
                 test_data_file=test_data_fl,
                 features=FEATURES,
@@ -312,8 +382,9 @@ def run_cv(cv_root_dir: pathlib.Path):
                 train_epochs=EPOCHS,
                 loss_function=LOSS_FUNCTION,
                 optimizer=OPTIMIZER,
-                initial_learning_rate=LR,
+                initial_learning_rate=INITIAL_LEARNING_RATE,
                 batch_size=BATCH_SIZE,
+                weights=WEIGHTS,
                 layers_to_freeze=LAYERS_TO_FREEZE,
                 device=DEVICE,
                 save_dir=save_dir / f'cv{cv_fld}'

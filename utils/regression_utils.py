@@ -5,7 +5,7 @@ DEBUG = False
 
 
 def calc_errors(true, predicted):
-    errors = np.abs(100 - predicted.flatten() * 100 / (true.flatten() + EPSILON))
+    errors = 100 * np.abs(1 - predicted.flatten() / (true.flatten() + EPSILON))
 
     return errors
 
