@@ -82,11 +82,11 @@ LR_SCHEDULES = {
     50: {'mode': 'set', 'lr': 0.0008},
     80: {'mode': 'set', 'lr': 0.0005},
     100: {'mode': 'set', 'lr': 0.0001},
-    140: {'mode': 'reduce', 'factor': 0.8, 'min_lr': 0.00001}
+    340: {'mode': 'reduce', 'factor': 0.8, 'min_lr': 0.00001}
 }
 MOMENTUM = 0.5
 WEIGHT_DECAY = 1e-5
-DROPOUT_START = 80
+DROPOUT_START = 20
 DROPOUT_DELTA = 25
 DROPOUT_P = 0.05
 DROPOUT_P_MAX = 0.3

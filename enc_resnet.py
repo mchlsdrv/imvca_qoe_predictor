@@ -46,7 +46,7 @@ LAYERS_TO_FREEZE = [
 ]
 
 # -- Train parameters
-EPOCHS = 150
+EPOCHS = 350
 INITIAL_LEARNING_RATE = 1e-3
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = MAPELoss()
