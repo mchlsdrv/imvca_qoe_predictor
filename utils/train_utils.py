@@ -139,7 +139,13 @@ def get_train_val_losses(
 
         val_losses = np.append(val_losses, btch_val_losses.mean())
 
-        plot_losses(train_losses=train_losses, val_losses=val_losses, save_dir=save_dir)
+        plot_losses(
+            train_losses=train_losses,
+            val_losses=val_losses,
+            train_stds=train_losses.std(),
+            val_stds=val_losses.std(),
+            save_dir=save_dir
+        )
 
         # - Save the checkpoint
         if epch > 0 and epch % checkpoint_save_frequency == 0:
@@ -451,7 +457,7 @@ class MAPELoss(torch.nn.Module):
         super().__init__()
 
     @staticmethod
-    def forward(target, preds):
-        criterion = 100 * (1 - preds / target).abs().mean()
+    def forward(true, pred):
+        criterion = 100 * (1 - pred / true).abs().mean()
 
         return criterion
