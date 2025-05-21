@@ -76,6 +76,8 @@ class EncRowDS(torch.utils.data.Dataset):
         print(f'\n> Fitting sampler ...')
         self.sampler.fit(self.feats.values, self.lbls.values)
         print(f'\t- Sampler training took {datetime.timedelta(seconds=time.time() - t_strt)}')
+
+
 class EncDS(torch.utils.data.Dataset):
     def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, chanel_mode: bool = False, p_sample: float = 0.1):
         super().__init__()

@@ -47,7 +47,7 @@ MODEL = torchvision.models.resnet34
 # WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
 WEIGHTS = None
 
-IMAGE_SIZE = 7
+IMAGE_SIZE = 5
 # IMAGE_SIZE = 35
 
 LAYERS_TO_FREEZE = []
