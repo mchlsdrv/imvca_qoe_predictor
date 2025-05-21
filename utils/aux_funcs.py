@@ -15,7 +15,6 @@ from configs.params import (
     LR_REDUCTION_FREQ,
     LR_REDUCTION_FCTR,
     DROPOUT_START,
-    DROPOUT_P,
     BATCH_SIZE,
     VAL_PROP,
     OUTPUT_DIR,
@@ -28,7 +27,7 @@ from configs.params import (
     EPSILON,
     DESCRIPTION,
     DROPOUT_DELTA,
-    DROPOUT_P_MAX
+    DROPOUT_P_MAX, DROPOUT_P
 )
 
 
@@ -42,15 +41,30 @@ def freeze_layers(model: torch.nn.Module, layers: list):
         print(f'- Freezing layer: {lyr}')
         eval(f'freeze_params(model.{lyr}.parameters())')
 
-def get_p_drop(p_drop: float, epoch: int):
-    p_drop = DROPOUT_P * (epoch // DROPOUT_START) if p_drop < DROPOUT_P_MAX else DROPOUT_P_MAX
+
+def get_p_drop(p_drop: float, epoch: int, drop_schedule: dict):
+    drop_epchs = np.array(list(drop_schedule.keys()))
+    drop_epch_idx = np.argwhere(drop_epchs <= epoch).flatten()
+
+    if len(drop_epch_idx):
+        max_drop_epch_idx = drop_epch_idx.max()
+        p_drop = drop_schedule.get(drop_epchs[max_drop_epch_idx])
+
     return p_drop
 
+    # if new_p_drop != p_drop:
+    #     print(f'\n\t** (INFO) ** The p_drop changed from {p_drop} -> {new_p_drop}')
+    # return new_p_drop
 
-def plot_losses(train_losses, val_losses, save_dir: pathlib.Path):
+
+def plot_losses(train_losses, val_losses, train_stds, val_stds, save_dir: pathlib.Path):
     # - Plot the train / val losses
-    plt.plot(train_losses, label='train')
-    plt.plot(val_losses, label='validation')
+    x = np.arange(1, len(train_losses) + 1)
+    plt.errorbar(x=x, y=train_losses, yerr=train_stds ,label='train')
+    plt.errorbar(x=x, y=val_losses, yerr=val_stds, label='validation')
+    plt.xticks(ticks=x, labels=x)
+    plt.xlabel('Epoch')
+    plt.ylabel('Mean Loss')
     plt.suptitle('Train / Validation Loss Plot')
     plt.legend()
     plt.savefig(save_dir / 'train_val_loss.png')

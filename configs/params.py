@@ -3,8 +3,8 @@ import pathlib
 import torch
 from sklearn import svm
 from sklearn.ensemble import RandomForestRegressor
-from xgboost import  XGBRegressor
-from catboost import  CatBoostRegressor
+from xgboost import XGBRegressor
+from catboost import CatBoostRegressor
 
 from models import QoENet1D, EncResNet
 
@@ -21,9 +21,40 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # --------
 # - DATA -
 # --------
-DATA_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data')
-EXPERIMENTS_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/experiments')
-OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output')
+# -- Platform
+# PLATFORM = 'linux'
+# PLATFORM = 'mac'
+PLATFORM = 'windows'
+PATHS = {
+    'linux': {
+        'train_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv'),
+        'test_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv'),
+        'data_root_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data'),
+        'output_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet'),
+        'experiments_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/experiments'),
+        'cv_root_dir': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+    },
+    'windows': {
+        'train_data_path': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv'),
+        'test_data_path': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv'),
+        'data_root_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data'),
+        'output_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\output\\enc_resnet'),
+        'experiments_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\experiments'),
+        'cv_root_dir': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_cv_10_folds')
+    },
+    'mac': {
+        'train_data_path': pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv'),
+        'test_data_path': pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv'),
+        'data_root_dir': pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data'),
+        'output_dir': pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet'),
+        'experiments_dir': pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/experiments'),
+        'cv_root_dir': pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+    },
+}
+OUTPUT_DIR = PATHS.get(PLATFORM)['output_dir']
+CV_ROOT_DIR = PATHS.get(PLATFORM)['cv_root_dir']
+DATA_ROOT_DIR = PATHS.get(PLATFORM)['data_root_dir']
+EXPERIMENTS_DIR = PATHS.get(PLATFORM)['experiments_dir']
 
 OUTLIER_TH = 3
 
@@ -43,17 +74,29 @@ EPOCHS = 50
 BATCH_SIZE = 64
 VAL_PROP = 0.2
 OPTIMIZER = torch.optim.Adam
-LOSS_FUNCTION = torch.nn.MSELoss()
 LAYER_ACTIVATION = torch.nn.SiLU
-LR = 1e-3
-LR_REDUCTION_FREQ = 50
-LR_REDUCTION_FCTR = 0.5
+LR = 5e-4
+LR_REDUCTION_FREQ = 20
+LR_REDUCTION_FCTR = 0.8
+LR_SCHEDULES = {
+    20: {'mode': 'set', 'lr': 0.0008},
+    80: {'mode': 'set', 'lr': 0.0005},
+    100: {'mode': 'set', 'lr': 0.0001},
+    140: {'mode': 'reduce', 'factor': 0.8, 'min_lr': 0.00001}
+}
 MOMENTUM = 0.5
 WEIGHT_DECAY = 1e-5
 DROPOUT_START = 80
 DROPOUT_DELTA = 25
+
+DROP_SCHEDULE = {
+    50: 0.01,
+    100: 0.1,
+    140: 0.2,
+}
+
 DROPOUT_P = 0.05
-DROPOUT_P_MAX = 0.2
+DROPOUT_P_MAX = 0.3
 RBM_K_GIBBS_STEPS = 10
 
 FEATURE_NAMES = {
