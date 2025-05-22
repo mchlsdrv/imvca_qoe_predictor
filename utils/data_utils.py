@@ -53,6 +53,7 @@ class EncRowDS(torch.utils.data.Dataset):
         lbls = lbls.flatten()
 
         X = torch.as_tensor(feats, dtype=torch.float32)
+
         Y = torch.as_tensor(lbls, dtype=torch.float32)
 
         return X, Y

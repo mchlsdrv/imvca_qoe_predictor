@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 import torchvision
 from tqdm import tqdm
+import timm
 
 from configs.params import (
     TS,
@@ -40,7 +41,7 @@ elif EXP_NAME.startswith('all'):
     FEATURES = [*MICRO_PCKT_SZ_FEATURES, *MICRO_PIAT_FEATURES]
 
 # -- Head model parameters
-MODEL = torchvision.models.resnet34
+MODEL = timm.create_model('vit_base_patch16_224', pretrained=True)
 # WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
 
 # MODEL = torchvision.models.resnet18
@@ -91,7 +92,7 @@ def replace_zeros_with_mean(y, n_labels: int, flatten: bool = False, to_tensor: 
     return no_zero_y
 
 
-def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, rgb_projection_layer,  optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
+def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
     best_epch = 1
     best_loss = np.inf
 
@@ -122,9 +123,6 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
                 flatten=False,
                 to_tensor=True
             )
-            # - Project the X to create an RGB like image
-            X = rgb_projection_layer(X)
-
             Y = Y.to(device)
 
             # - Zero gradients for each batch
@@ -204,7 +202,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     )
 
 
-def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, rgb_projection_layer,  device: torch.device, save_dir: pathlib.Path):
+def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path):
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
@@ -212,8 +210,6 @@ def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, lab
     with torch.no_grad():
         for (X, Y) in test_data:
             X = X.to(device)
-
-            X = rgb_projection_layer(X)
 
             # - Get the predictions
             outputs = model(X, p_drop)
@@ -269,8 +265,6 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
     # >  Split the train data into train and validation datasets
     train_df, val_df = get_train_val_split(data=train_data_df, validation_proportion=0.2)
 
-    rgb_embed_lyr = torch.nn.Conv2d(in_channels=len(features) // image_size ** 2, out_channels=3, kernel_size=1).to(device)
-
     # >  Train data
     # train_ds = EncDS(
     train_ds=EncRowDS(
@@ -279,7 +273,7 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
         labels=labels,
         image_size=image_size,
         chanel_mode=True,
-        p_sample=AUG_P_DATA_SAMPLE,
+        p_sample=AUG_P_DATA_SAMPLE
     )
     train_dl = torch.utils.data.DataLoader(
         train_ds,
@@ -312,8 +306,7 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
     # head_mdl = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
     mdl = EncResNet(
         head_model=head_mdl,
-        in_channels=3,
-        # in_channels=len(features) // image_size ** 2,
+        in_channels=len(features) // image_size ** 2,
         # in_channels=len(features) // image_size,
         out_size=len(labels)
         # out_size = image_size * len(labels)
@@ -329,9 +322,8 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
         epochs=train_epochs,
         train_data=train_dl,
         val_data=val_dl,
-        optimizer=optimizer(filter(lambda p: p.requires_grad, [*mdl.parameters(), *rgb_embed_lyr.parameters()]), lr=initial_learning_rate),
+        optimizer=optimizer(filter(lambda p: p.requires_grad, mdl.parameters()), lr=initial_learning_rate),
         loss_function=loss_function,
-        rgb_projection_layer=rgb_embed_lyr,
         device=device,
         save_dir=save_dir
     )
@@ -366,7 +358,6 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
         model=mdl,
         test_data=test_dl,
         labels=labels,
-        rgb_projection_layer=rgb_embed_lyr,
         device=device,
         save_dir=save_dir
     )
