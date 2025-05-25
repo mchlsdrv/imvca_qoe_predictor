@@ -7,7 +7,8 @@ import torch.utils.data
 import sklearn
 from tqdm import tqdm
 
-from configs.params import LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, OUTLIER_TH
+from configs.params import LR_REDUCTION_FREQUENCY, LR_REDUCTION_FACTOR, DROPOUT_EPOCH_START, DROPOUT_P_INIT, OUTLIER_TH, \
+    LR_REDUCTION_FACTOR, DROPOUT_EPOCH_START
 from utils.regression_utils import calc_errors
 from utils.aux_funcs import plot_losses
 from utils.data_utils import calc_data_reduction, normalize_columns, get_data, get_input_data, remove_outliers
@@ -53,7 +54,10 @@ def reduce_lr(optimizer: torch.optim, epoch: int, schedules: dict):
             if old_lr > schdl.get('min_lr'):
                 new_lr = old_lr * schdl.get('factor')
                 optimizer.param_groups[0]['lr'] = new_lr
-    print(f'\n\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}' if old_lr != new_lr else '\n\t ** INFO ** The learning rate was not changed')
+    if old_lr != new_lr:
+        print(f'\n\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}')
+    else:
+        print(f'\n\t ** INFO ** The learning rate was not changed')
 
 
 def get_p_drop(p_drop: float, epoch: int, drop_schedule: dict):
@@ -182,10 +186,10 @@ def model_train(model, epochs, train_data_loader, validation_data_loader, loss_f
         val_data_loader=validation_data_loader,
         loss_function=loss_function(),
         optimizer=optimizer(model.parameters(), lr=learning_rate),
-        lr_reduce_frequency=LR_REDUCTION_FREQ,
-        lr_reduce_factor=LR_REDUCTION_FCTR,
-        dropout_epoch_start=DROPOUT_START,
-        p_dropout_init=DROPOUT_P,
+        lr_reduce_frequency=LR_REDUCTION_FREQUENCY,
+        lr_reduce_factor=LR_REDUCTION_FACTOR,
+        dropout_epoch_start=DROPOUT_EPOCH_START,
+        p_dropout_init=DROPOUT_P_INIT,
         tokenize=tokenize,
         device=device,
         save_dir=save_dir

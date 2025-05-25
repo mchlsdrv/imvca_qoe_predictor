@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision
-from torch.nn import MSELoss
 from tqdm import tqdm
+import timm
 
 from configs.params import (
     TS,
@@ -19,7 +19,7 @@ from configs.params import (
     CV_ROOT_DIR,
     OUTPUT_DIR,
     LABELS,
-    DROP_SCHEDULE, EPSILON
+    DROP_SCHEDULE
 )
 from models import EncResNet
 from utils.data_utils import get_train_val_split, EncDS, EncRowDS
@@ -30,8 +30,8 @@ from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 
 # - LOCAL HYPERPARAMETERS
 # -- Features
-EXP_NAME = 'piat_mape_brisque'
-# EXP_NAME = 'pckt_sz_mse_brisqe'
+# EXP_NAME = 'piat_mape_loss'
+EXP_NAME = 'pckt_sz_mape_loss_no_weights'
 # EXP_NAME = 'pckt_sz_mape_loss_no_samp'
 if EXP_NAME.startswith('pckt_sz'):
     FEATURES = MICRO_PCKT_SZ_FEATURES
@@ -41,29 +41,28 @@ elif EXP_NAME.startswith('all'):
     FEATURES = [*MICRO_PCKT_SZ_FEATURES, *MICRO_PIAT_FEATURES]
 
 # -- Head model parameters
-MODEL = torchvision.models.resnet34
-WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
+MODEL = timm.create_model('vit_base_patch16_224', pretrained=True)
+# WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
 
 # MODEL = torchvision.models.resnet18
 # WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
-# WEIGHTS = None
+WEIGHTS = None
 
 IMAGE_SIZE = 5
 # IMAGE_SIZE = 35
 
-# LAYERS_TO_FREEZE = []
-N_LAYERS_TO_FREEZE = 4
-LAYERS_TO_FREEZE = [
-    'conv1',
-    'bn1',
-    *[f'layer{idx}' for idx in range(1, N_LAYERS_TO_FREEZE)]
-]
+LAYERS_TO_FREEZE = []
+# N_LAYERS_TO_FREEZE = 4
+# LAYERS_TO_FREEZE = [
+#     'conv1',
+#     'bn1',
+#     *[f'layer{idx}' for idx in range(1, N_LAYERS_TO_FREEZE)]
+# ]
 
 # -- Train parameters
-EPOCHS = 350
+EPOCHS = 150
 INITIAL_LEARNING_RATE = 1e-3
 OPTIMIZER = torch.optim.Adam
-# LOSS_FUNCTION = MSELoss()
 LOSS_FUNCTION = MAPELoss()
 AUG_P_DATA_SAMPLE = 0.1
 # - CHECKS
@@ -93,7 +92,7 @@ def replace_zeros_with_mean(y, n_labels: int, flatten: bool = False, to_tensor: 
     return no_zero_y
 
 
-def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, rgb_projection_layer,  optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
+def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
     best_epch = 1
     best_loss = np.inf
 
@@ -124,9 +123,6 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
                 flatten=False,
                 to_tensor=True
             )
-            # - Project the X to create an RGB like image
-            X = rgb_projection_layer(X)
-
             Y = Y.to(device)
 
             # - Zero gradients for each batch
@@ -149,6 +145,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
         train_loss_means = np.append(train_loss_means, train_btch_loss_mean)
         train_loss_stds = np.append(train_loss_stds, train_btch_loss_std)
 
+        print(f'\n> Mean train loss for epoch {epch}: {train_btch_loss_mean:.5f}+/-{train_btch_loss_std:.6}')
 
         model.eval()
         val_btch_losses = np.array([])
@@ -162,7 +159,6 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
                     to_tensor=True
                 )
                 Y = Y.to(device)
-                X = rgb_projection_layer(X)
 
                 outputs = model(X, p_drop)
 
@@ -175,12 +171,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
         val_loss_means = np.append(val_loss_means, val_btch_loss_mean)
         val_loss_stds = np.append(val_loss_stds, val_btch_loss_std)
 
-        print(f'''
-        > Mean Stats for epoch {epch}: 
-            - Train loss = {train_btch_loss_mean:.5f}+/-{train_btch_loss_std:.6}
-            - Val loss = {val_btch_loss_mean:.5f} + / -{val_btch_loss_std:.6}
-            - Val / Train (%) = {100 * (1 - val_btch_loss_mean / (train_btch_loss_mean + EPSILON)):.5f}
-        ''')
+        print(f'\n> Mean val loss for epoch {epch}: {val_btch_loss_mean:.5f}+/-{val_btch_loss_std:.6}')
 
         plot_losses(
             train_losses=train_loss_means,
@@ -211,7 +202,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     )
 
 
-def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, rgb_projection_layer,  device: torch.device, save_dir: pathlib.Path):
+def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path):
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
@@ -219,8 +210,6 @@ def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, lab
     with torch.no_grad():
         for (X, Y) in test_data:
             X = X.to(device)
-
-            X = rgb_projection_layer(X)
 
             # - Get the predictions
             outputs = model(X, p_drop)
@@ -243,7 +232,7 @@ def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, lab
             )
 
             # - As the outputs are in the form [BRISQE_ERRORS | PIQE_ERRORS | FPS_ERRORS] we need to reshape and transpose them
-            btch_errs = btch_errs.reshape(len(labels), -1).T
+            btch_errs = btch_errs.reshape(3, -1).T
 
             # - Add the errors to history
             errors_df = pd.concat([errors_df, pd.DataFrame(columns=labels, data=btch_errs)])
@@ -251,7 +240,7 @@ def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, lab
             # - Add the metadata to history
             metadata_columns = [f'{typ}_{lbl}' for (typ, lbl) in itertools.product(['true', 'pred'], labels)]
 
-            metadata_df = pd.concat([metadata_df, pd.DataFrame(columns=metadata_columns, data=np.hstack([true.reshape(len(labels), -1).T, pred.reshape(len(labels), -1).T]))])
+            metadata_df = pd.concat([metadata_df, pd.DataFrame(columns=metadata_columns, data=np.hstack([true.reshape(3, -1).T, pred.reshape(3, -1).T]))])
 
     print(f'> Test stats:\n{errors_df.describe()}')
 
@@ -276,12 +265,6 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
     # >  Split the train data into train and validation datasets
     train_df, val_df = get_train_val_split(data=train_data_df, validation_proportion=0.2)
 
-    rgb_embed_lyr = torch.nn.Conv2d(
-        in_channels=len(features) // image_size ** 2,
-        out_channels=3,
-        kernel_size=1
-    ).to(device)
-
     # >  Train data
     # train_ds = EncDS(
     train_ds=EncRowDS(
@@ -290,7 +273,7 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
         labels=labels,
         image_size=image_size,
         chanel_mode=True,
-        p_sample=AUG_P_DATA_SAMPLE,
+        p_sample=AUG_P_DATA_SAMPLE
     )
     train_dl = torch.utils.data.DataLoader(
         train_ds,
@@ -323,8 +306,7 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
     # head_mdl = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
     mdl = EncResNet(
         head_model=head_mdl,
-        in_channels=3,
-        # in_channels=len(features) // image_size ** 2,
+        in_channels=len(features) // image_size ** 2,
         # in_channels=len(features) // image_size,
         out_size=len(labels)
         # out_size = image_size * len(labels)
@@ -340,9 +322,8 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
         epochs=train_epochs,
         train_data=train_dl,
         val_data=val_dl,
-        optimizer=optimizer(filter(lambda p: p.requires_grad, [*mdl.parameters(), *rgb_embed_lyr.parameters()]), lr=initial_learning_rate),
+        optimizer=optimizer(filter(lambda p: p.requires_grad, mdl.parameters()), lr=initial_learning_rate),
         loss_function=loss_function,
-        rgb_projection_layer=rgb_embed_lyr,
         device=device,
         save_dir=save_dir
     )
@@ -377,7 +358,6 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
         model=mdl,
         test_data=test_dl,
         labels=labels,
-        rgb_projection_layer=rgb_embed_lyr,
         device=device,
         save_dir=save_dir
     )

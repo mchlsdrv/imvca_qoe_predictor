@@ -41,10 +41,10 @@ class EncRowDS(torch.utils.data.Dataset):
         feats = self.feats.iloc[index, :].T.values
         lbls = self.lbls.iloc[index, :].T.values
 
-        # # - If we add noise to the data or not
-        # if np.random.random() < self.p_smpl:
-        #     feats += np.random.randn(*feats.shape)
-        #     lbls = self.sampler.predict(feats.T)
+        # - If we add noise to the data or not
+        if np.random.random() < self.p_smpl:
+            feats += np.random.randn(*feats.shape)
+            lbls = self.sampler.predict(np.expand_dims(feats.T, 0))
 
         if self.chnl_md:
             feats = feats.reshape(self.n_chnls, self.img_sz, self.img_sz)
@@ -53,6 +53,7 @@ class EncRowDS(torch.utils.data.Dataset):
         lbls = lbls.flatten()
 
         X = torch.as_tensor(feats, dtype=torch.float32)
+
         Y = torch.as_tensor(lbls, dtype=torch.float32)
 
         return X, Y
@@ -74,7 +75,7 @@ class EncRowDS(torch.utils.data.Dataset):
         # - Train the sampler on the train data to use in the course of training fo augmentation
         t_strt = time.time()
         print(f'\n> Fitting sampler ...')
-        self.sampler.fit(self.feats.values, self.lbls.values)
+        self.sampler.fit(self.feats.values, self.lbls.values.flatten())
         print(f'\t- Sampler training took {datetime.timedelta(seconds=time.time() - t_strt)}')
 
 

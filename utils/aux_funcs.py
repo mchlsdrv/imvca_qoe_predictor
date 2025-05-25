@@ -11,10 +11,10 @@ from configs.params import (
     N_LAYERS,
     N_UNITS,
     EPOCHS,
-    LR,
-    LR_REDUCTION_FREQ,
-    LR_REDUCTION_FCTR,
-    DROPOUT_START,
+    LR_INIT,
+    LR_REDUCTION_FREQUENCY,
+    LR_REDUCTION_FACTOR,
+    DROPOUT_EPOCH_START,
     BATCH_SIZE,
     VAL_PROP,
     OUTPUT_DIR,
@@ -27,7 +27,7 @@ from configs.params import (
     EPSILON,
     DESCRIPTION,
     DROPOUT_DELTA,
-    DROPOUT_P_MAX, DROPOUT_P
+    DROPOUT_P_MAX, DROPOUT_P_INIT
 )
 
 
@@ -78,16 +78,16 @@ def get_arg_parser():
     parser.add_argument('--n_layers', type=int, default=N_LAYERS, help='Number of NN-Blocks in the network')
     parser.add_argument('--n_units', type=int, default=N_UNITS, help='Number of units in each NN-Block')
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='The number of samples in each batch')
-    parser.add_argument('--lr', type=int, default=LR, help='Represents the initial learning rate of the optimizer')
+    parser.add_argument('--lr', type=int, default=LR_INIT, help='Represents the initial learning rate of the optimizer')
     parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of epochs to train the model')
     parser.add_argument('--val_prop', type=float, default=VAL_PROP, help=f'The proportion of the data which will be set aside, and be used in the process of validation')
     parser.add_argument('--outlier_th', type=int, default=OUTLIER_TH, help='Represents the number of STDs from the mean to remove samples with')
     parser.add_argument('--output_dir', type=str, default=OUTPUT_DIR, help='The path to the directory where the outputs will be placed')
-    parser.add_argument('--lr_reduction_freq', type=int, default=LR_REDUCTION_FREQ, help='Represents the number of epochs for the LR reduction')
-    parser.add_argument('--lr_reduction_fctr', type=float, default=LR_REDUCTION_FCTR, help='Represents the factor by which the LR reduced each LR_REDUCTION_FREQ epochs')
-    parser.add_argument('--dropout_start', type=int, default=DROPOUT_START, help='The epoch when the dropout technique start being applied')
+    parser.add_argument('--lr_reduction_freq', type=int, default=LR_REDUCTION_FREQUENCY, help='Represents the number of epochs for the LR reduction')
+    parser.add_argument('--lr_reduction_fctr', type=float, default=LR_REDUCTION_FACTOR, help='Represents the factor by which the LR reduced each LR_REDUCTION_FREQ epochs')
+    parser.add_argument('--dropout_start', type=int, default=DROPOUT_EPOCH_START, help='The epoch when the dropout technique start being applied')
     parser.add_argument('--dropout_delta', type=int, default=DROPOUT_DELTA, help='The number of epochs in which the p_drop will be constant')
-    parser.add_argument('--dropout_p', type=float, default=DROPOUT_P, help='The probability of the unit to be zeroed out')
+    parser.add_argument('--dropout_p', type=float, default=DROPOUT_P_INIT, help='The probability of the unit to be zeroed out')
     parser.add_argument('--dropout_p_max', type=float, default=DROPOUT_P_MAX, help='The maximal probability of the unit to be zeroed out')
     parser.add_argument('--desc', type=str, default=DESCRIPTION, help='The description of the current experiment')
     parser.add_argument('--momentum', type=float, default=MOMENTUM, help='The momentum value to use in training')

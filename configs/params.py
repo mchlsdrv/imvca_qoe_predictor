@@ -22,8 +22,8 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # - DATA -
 # --------
 # -- Platform
-# PLATFORM = 'linux'
-PLATFORM = 'mac'
+PLATFORM = 'linux'
+# PLATFORM = 'mac'
 # PLATFORM = 'windows'
 PATHS = {
     'linux': {
@@ -75,28 +75,34 @@ BATCH_SIZE = 64
 VAL_PROP = 0.2
 OPTIMIZER = torch.optim.Adam
 LAYER_ACTIVATION = torch.nn.SiLU
-LR = 5e-4
-LR_REDUCTION_FREQ = 20
-LR_REDUCTION_FCTR = 0.8
+
+# - LR Reduction
+LR_INIT = 5e-4
+LR_REDUCTION_FREQUENCY = 20
+LR_REDUCTION_FACTOR = 0.8
 LR_SCHEDULES = {
+    0: {'mode': 'set', 'lr': 0.001},
     20: {'mode': 'set', 'lr': 0.0008},
-    80: {'mode': 'set', 'lr': 0.0005},
+    50: {'mode': 'set', 'lr': 0.0005},
     100: {'mode': 'set', 'lr': 0.0001},
     340: {'mode': 'reduce', 'factor': 0.8, 'min_lr': 0.00001}
 }
-MOMENTUM = 0.5
-WEIGHT_DECAY = 1e-5
-DROPOUT_START = 20
-DROPOUT_DELTA = 25
 
+# - Dropout
+DROPOUT_EPOCH_START = 80
+DROPOUT_DELTA = 25
+DROPOUT_P_INIT = 0.05
+DROPOUT_P_MAX = 0.3
 DROP_SCHEDULE = {
-    50: 0.01,
-    100: 0.1,
-    140: 0.2,
+    20: 0.1,
+    50: 0.2,
+    100: 0.3,
+    140: 0.4,
 }
 
-DROPOUT_P = 0.05
-DROPOUT_P_MAX = 0.3
+MOMENTUM = 0.5
+WEIGHT_DECAY = 1e-5
+
 RBM_K_GIBBS_STEPS = 10
 
 FEATURE_NAMES = {
@@ -141,8 +147,8 @@ MICRO_PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
 
 LABELS = [
     'brisque',
-    'piqe',
-    'fps',
+    # 'piqe',
+    # 'fps',
 ]
 
 MODELS = {
