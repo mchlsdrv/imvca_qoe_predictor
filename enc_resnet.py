@@ -21,7 +21,7 @@ from configs.params import (
     DROP_SCHEDULE, EPSILON
 )
 from models import EncResNet
-from utils.data_utils import get_train_val_split, EncDS, EncRowDS
+from utils.data_utils import get_train_val_split, EncRowDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
 from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
@@ -48,7 +48,6 @@ WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
 # WEIGHTS = None
 
 IMAGE_SIZE = 5
-# IMAGE_SIZE = 35
 
 # LAYERS_TO_FREEZE = []
 N_LAYERS_TO_FREEZE = 4
@@ -64,7 +63,10 @@ INITIAL_LEARNING_RATE = 1e-3
 OPTIMIZER = torch.optim.Adam
 # LOSS_FUNCTION = MSELoss()
 LOSS_FUNCTION = MAPELoss()
-AUG_P_DATA_SAMPLE = 0.1
+
+AUG_P_NOISE = 0.2
+AUG_P_ROW_SHUFFLE = 0.2
+
 # - CHECKS
 # LOSS_FUNCTION(torch.as_tensor([50, 45, 17], dtype=torch.float32), torch.as_tensor([78, 35, 14], dtype=torch.float32))
 
@@ -269,9 +271,9 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
     # >  Load the train dataframe
     train_data_df = pd.read_csv(train_data_file)
 
-    # - Remove invalid data
+    # - Filter NaNs and samples with Kbps < 0
     train_data_df.dropna(inplace=True)
-    train_data_df = train_data_df.loc[train_data_df.loc[:, 'kbps'] > 0]
+    train_data_df = train_data_df[train_data_df.loc[:, 'kbps'] > 0]
 
     # >  Get only the features and the labels
     train_data_df = train_data_df.loc[:, [*features, *labels]]
@@ -286,14 +288,14 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
     ).to(device)
 
     # >  Train data
-    # train_ds = EncDS(
     train_ds=EncRowDS(
         data=train_df,
         features=features,
         labels=labels,
         image_size=image_size,
         chanel_mode=True,
-        p_sample=AUG_P_DATA_SAMPLE,
+        p_noise=AUG_P_NOISE,
+        p_row_shuffle=AUG_P_ROW_SHUFFLE
     )
     train_dl = torch.utils.data.DataLoader(
         train_ds,
@@ -305,13 +307,13 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
 
     # >  Val data
     val_ds=EncRowDS(
-    # val_ds = EncDS(
         data=val_df,
         features=features,
         labels=labels,
         image_size=image_size,
         chanel_mode=True,
-        p_sample=AUG_P_DATA_SAMPLE
+        p_noise=AUG_P_NOISE,
+        p_row_shuffle=AUG_P_ROW_SHUFFLE
     )
     val_dl = torch.utils.data.DataLoader(
         val_ds,
@@ -323,18 +325,16 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
 
     # >  Get the model
     head_mdl = head_model(weights=weights)
-    # head_mdl = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
     mdl = EncResNet(
         head_model=head_mdl,
         in_channels=3,
-        # in_channels=len(features) // image_size ** 2,
-        # in_channels=len(features) // image_size,
         out_size=len(labels)
-        # out_size = image_size * len(labels)
     )
+
     # >  If this parameter is supplied - freeze the corresponding layers
     if isinstance(layers_to_freeze, list):
         freeze_layers(model=mdl.mdl, layers=layers_to_freeze)
+
     mdl.to(device)
 
     # >  Train the model
@@ -365,7 +365,8 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
         labels=labels,
         image_size=image_size,
         chanel_mode=True,
-        p_sample=AUG_P_DATA_SAMPLE
+        p_noise=0.0,
+        p_row_shuffle=0.0
     )
     test_dl = torch.utils.data.DataLoader(
         test_ds,
