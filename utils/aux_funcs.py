@@ -52,10 +52,6 @@ def get_p_drop(p_drop: float, epoch: int, drop_schedule: dict):
 
     return p_drop
 
-    # if new_p_drop != p_drop:
-    #     print(f'\n\t** (INFO) ** The p_drop changed from {p_drop} -> {new_p_drop}')
-    # return new_p_drop
-
 
 def plot_losses(train_losses, val_losses, train_stds, val_stds, save_dir: pathlib.Path):
     # - Plot the train / val losses
@@ -63,6 +59,7 @@ def plot_losses(train_losses, val_losses, train_stds, val_stds, save_dir: pathli
     plt.errorbar(x=x, y=train_losses, yerr=train_stds ,label='train')
     plt.errorbar(x=x, y=val_losses, yerr=val_stds, label='validation')
     plt.xticks(ticks=x, labels=x)
+    plt.locator_params(axis='x', nbins=20)
     plt.xlabel('Epoch')
     plt.ylabel('Mean Loss')
     plt.suptitle('Train / Validation Loss Plot')

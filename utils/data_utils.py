@@ -17,15 +17,16 @@ from configs.params import OUTLIER_TH, EPSILON
 
 
 class EncRowDS(torch.utils.data.Dataset):
-    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, chanel_mode: bool = False, p_sample: float = 0.1):
+    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, chanel_mode: bool = False, p_noise: float = 0.0, p_row_shuffle: float = 0.0):
         super().__init__()
 
         self.data = data
         self.feat_cols = features
         self.lbl_cols = labels
         self.img_sz = image_size
-        self.sampler = sklearn.ensemble.RandomForestRegressor(n_estimators=10, max_depth=10)
-        self.p_smpl = p_sample
+        # self.sampler = sklearn.ensemble.RandomForestRegressor(n_estimators=10, max_depth=10)
+        self.p_noise = p_noise
+        self.p_row_shuf = p_row_shuffle
         self.chnl_md = chanel_mode
 
         self.feats = None
@@ -37,24 +38,41 @@ class EncRowDS(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.data) - self.img_sz
 
-    def __getitem__(self, index):
-        feats = self.feats.iloc[index, :].T.values
-        lbls = self.lbls.iloc[index, :].T.values
+    def augmentations(self, X, Y):
+        # - Apply random noise addition to the values in each row with probability self.p_smpl
+        p = np.random.random()
+        if p < self.p_noise:
+            X += np.random.randn(len(X))
+            # - Sample labels based on pretrained sampler
+            # Y = self.sampler.predict(np.expand_dims(X.T, 0))
 
-        # - If we add noise to the data or not
-        if np.random.random() < self.p_smpl:
-            feats += np.random.randn(*feats.shape)
-            lbls = self.sampler.predict(np.expand_dims(feats.T, 0))
+        # - Apply random shuffle to the values in each row with probability self.p_shuf
+        p = np.random.random()
+        if p < self.p_row_shuf:
+            np.random.shuffle(X)
 
+        return X, Y
+
+    def transforms(self, X, Y):
         if self.chnl_md:
-            feats = feats.reshape(self.n_chnls, self.img_sz, self.img_sz)
-            feats = np.array(list(map(lambda x: x.T, feats)))  # change the order of the features to represent joint events
+            X = X.reshape(self.n_chnls, self.img_sz, self.img_sz)
+            X = np.array(list(map(lambda x: x.T, X)))  # change the order of the features to represent joint events
 
-        lbls = lbls.flatten()
+        Y = Y.flatten()
 
-        X = torch.as_tensor(feats, dtype=torch.float32)
+        X = torch.as_tensor(X, dtype=torch.float32)
 
-        Y = torch.as_tensor(lbls, dtype=torch.float32)
+        Y = torch.as_tensor(Y, dtype=torch.float32)
+
+        return X, Y
+
+    def __getitem__(self, index):
+        X = self.feats.iloc[index, :].T.values
+        Y = self.lbls.iloc[index, :].T.values
+
+        X, Y = self.augmentations(X=X, Y=Y)
+
+        X, Y = self.transforms(X=X, Y=Y)
 
         return X, Y
 
@@ -73,10 +91,10 @@ class EncRowDS(torch.utils.data.Dataset):
         self.feats = (self.feats - self.feats.mean()) / (self.feats.std() + EPSILON)
 
         # - Train the sampler on the train data to use in the course of training fo augmentation
-        t_strt = time.time()
-        print(f'\n> Fitting sampler ...')
-        self.sampler.fit(self.feats.values, self.lbls.values.flatten())
-        print(f'\t- Sampler training took {datetime.timedelta(seconds=time.time() - t_strt)}')
+        # t_strt = time.time()
+        # print(f'\n> Fitting sampler ...')
+        # self.sampler.fit(self.feats.values, self.lbls.values.flatten())
+        # print(f'\t- Sampler training took {datetime.timedelta(seconds=time.time() - t_strt)}')
 
 
 class EncDS(torch.utils.data.Dataset):
