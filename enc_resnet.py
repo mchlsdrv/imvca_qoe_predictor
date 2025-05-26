@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision
-from torch.nn import MSELoss
 from tqdm import tqdm
 
 from configs.params import (
@@ -30,7 +29,7 @@ from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 
 # - LOCAL HYPERPARAMETERS
 # -- Features
-EXP_NAME = 'piat_mape_brisque'
+EXP_NAME = 'piat_mape_brisque_no_invalid'
 # EXP_NAME = 'pckt_sz_mse_brisqe'
 # EXP_NAME = 'pckt_sz_mape_loss_no_samp'
 if EXP_NAME.startswith('pckt_sz'):
@@ -60,7 +59,7 @@ LAYERS_TO_FREEZE = [
 ]
 
 # -- Train parameters
-EPOCHS = 350
+EPOCHS = 150
 INITIAL_LEARNING_RATE = 1e-3
 OPTIMIZER = torch.optim.Adam
 # LOSS_FUNCTION = MSELoss()
@@ -269,6 +268,10 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
     # - Train
     # >  Load the train dataframe
     train_data_df = pd.read_csv(train_data_file)
+
+    # - Remove invalid data
+    train_data_df.dropna(inplace=True)
+    train_data_df = train_data_df.loc[train_data_df.loc[:, 'kbps'] > 0]
 
     # >  Get only the features and the labels
     train_data_df = train_data_df.loc[:, [*features, *labels]]
