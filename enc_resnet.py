@@ -17,7 +17,6 @@ from configs.params import (
     DEVICE,
     CV_ROOT_DIR,
     OUTPUT_DIR,
-    LABELS,
     DROP_SCHEDULE, EPSILON
 )
 from models import EncResNet
@@ -29,8 +28,8 @@ from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 
 # - LOCAL HYPERPARAMETERS
 # -- Features
-EXP_NAME = 'piat_mape_brisque'
-# EXP_NAME = 'pckt_sz_mse_brisqe'
+# EXP_NAME = 'piat_mape_brisque'
+EXP_NAME = 'pckt_sz_mape_brisqe'
 # EXP_NAME = 'pckt_sz_mape_loss_no_samp'
 if EXP_NAME.startswith('pckt_sz'):
     FEATURES = MICRO_PCKT_SZ_FEATURES
@@ -38,6 +37,12 @@ elif EXP_NAME.startswith('piat'):
     FEATURES = MICRO_PIAT_FEATURES
 elif EXP_NAME.startswith('all'):
     FEATURES = [*MICRO_PCKT_SZ_FEATURES, *MICRO_PIAT_FEATURES]
+
+LABELS = [
+    'brisque',
+    # 'piqe',
+    # 'fps',
+]
 
 # -- Head model parameters
 MODEL = torchvision.models.resnet34
@@ -52,8 +57,8 @@ IMAGE_SIZE = 5
 # LAYERS_TO_FREEZE = []
 N_LAYERS_TO_FREEZE = 4
 LAYERS_TO_FREEZE = [
-    'conv1',
-    'bn1',
+    # 'conv1',
+    # 'bn1',
     *[f'layer{idx}' for idx in range(1, N_LAYERS_TO_FREEZE)]
 ]
 
@@ -155,6 +160,8 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
         val_btch_losses = np.array([])
         with torch.no_grad():
             for (X, Y) in val_data:
+                X = np.fft.fft(X)
+                X = torch.as_tensor(X, dtype=torch.float32)
                 X = X.to(device)
                 Y = replace_zeros_with_mean(
                     y=Y,

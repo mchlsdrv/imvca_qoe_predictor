@@ -145,12 +145,6 @@ MICRO_PIAT_FEATURES = [f'piat_{i}' for i in range(1, 351)]
 MICRO_PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
 
 
-LABELS = [
-    'brisque',
-    # 'piqe',
-    # 'fps',
-]
-
 MODELS = {
     'EncResNet': EncResNet,
     'QoENet1D': QoENet1D,
