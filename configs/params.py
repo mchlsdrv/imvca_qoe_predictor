@@ -22,9 +22,9 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # - DATA -
 # --------
 # -- Platform
-# PLATFORM = 'linux'
+PLATFORM = 'linux'
 # PLATFORM = 'mac'
-PLATFORM = 'windows'
+# PLATFORM = 'windows'
 PATHS = {
     'linux': {
         'train_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv'),

@@ -9,12 +9,15 @@ import numpy as np
 import pandas as pd
 import sklearn
 import sklearn.decomposition
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import scipy
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from configs.params import OUTLIER_TH, EPSILON
 
+import warnings
+warnings.filterwarnings("ignore")
 
 class EncRowDS(torch.utils.data.Dataset):
     def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, chanel_mode: bool = False, p_noise: float = 0.0, p_row_shuffle: float = 0.0):
@@ -24,7 +27,8 @@ class EncRowDS(torch.utils.data.Dataset):
         self.feat_cols = features
         self.lbl_cols = labels
         self.img_sz = image_size
-        # self.sampler = sklearn.ensemble.RandomForestRegressor(n_estimators=10, max_depth=10)
+        self.min_max_scaler = MinMaxScaler()
+        self.std_scaler = StandardScaler()
         self.p_noise = p_noise
         self.p_row_shuf = p_row_shuffle
         self.chnl_md = chanel_mode
@@ -39,10 +43,14 @@ class EncRowDS(torch.utils.data.Dataset):
         return len(self.data) - self.img_sz
 
     def augmentations(self, X, Y):
+        X, Y = X.astype(np.float32), Y.astype(np.float32)
         # - Apply random noise addition to the values in each row with probability self.p_smpl
         p = np.random.random()
         if p < self.p_noise:
+            # rnd_err = np.array([complex(a, b) for a, b in zip(np.random.randn(len(X)), np.random.randn(len(X)))])
+            # X += rnd_err  # (np.random.randn(len(X)) + 1.0* j * np.random.randn(len(X)))
             X += np.random.randn(len(X))
+            # X += np.random.random(len(X))
             # - Sample labels based on pretrained sampler
             # Y = self.sampler.predict(np.expand_dims(X.T, 0))
 
@@ -54,6 +62,22 @@ class EncRowDS(torch.utils.data.Dataset):
         return X, Y
 
     def transforms(self, X, Y):
+        # try:
+        # - BoxCox
+        X_trans, _ = scipy.stats.boxcox(X[X > 0])
+        X[X > 0] = X_trans.astype(np.float32)
+
+        # - Normalize features
+        self.min_max_scaler.fit(np.expand_dims(X, -1))
+        X = self.min_max_scaler.transform(np.expand_dims(X, -1))
+
+        # - Convert to frequency domain
+        X = np.fft.fft(X)
+
+        # - Standardize the features
+        self.std_scaler.fit(np.real(X))
+        X = self.std_scaler.transform(np.real(X))
+
         if self.chnl_md:
             X = X.reshape(self.n_chnls, self.img_sz, self.img_sz)
             X = np.array(list(map(lambda x: x.T, X)))  # change the order of the features to represent joint events
@@ -87,14 +111,8 @@ class EncRowDS(torch.utils.data.Dataset):
         # - Calculate the number of channels
         self.n_chnls = self.feats.shape[-1] // self.img_sz ** 2
 
-        # - Normalize the features
-        self.feats = (self.feats - self.feats.mean()) / (self.feats.std() + EPSILON)
-
-        # - Train the sampler on the train data to use in the course of training fo augmentation
-        # t_strt = time.time()
-        # print(f'\n> Fitting sampler ...')
-        # self.sampler.fit(self.feats.values, self.lbls.values.flatten())
-        # print(f'\t- Sampler training took {datetime.timedelta(seconds=time.time() - t_strt)}')
+        # # - Normalize the features
+        # self.feats = (self.feats - self.feats.mean()) / (self.feats.std() + EPSILON)
 
 
 class EncDS(torch.utils.data.Dataset):

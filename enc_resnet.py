@@ -30,7 +30,7 @@ from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 # -- Features
 
 # EXP_NAME = 'piat_mape_brisque'
-EXP_NAME = 'pckt_sz_mape_brisqe'
+EXP_NAME = 'pckt_sz_resent16_frz_lyr_4_boxcox_norm_fourier_std_brisque'
 # EXP_NAME = 'pckt_sz_mape_loss_no_samp'
 if EXP_NAME.startswith('pckt_sz'):
     FEATURES = MICRO_PCKT_SZ_FEATURES
@@ -46,11 +46,11 @@ LABELS = [
 ]
 
 # -- Head model parameters
-MODEL = torchvision.models.resnet34
-WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
+# MODEL = torchvision.models.resnet34
+# WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
 
-# MODEL = torchvision.models.resnet18
-# WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
+MODEL = torchvision.models.resnet18
+WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
 # WEIGHTS = None
 
 IMAGE_SIZE = 5
@@ -58,8 +58,8 @@ IMAGE_SIZE = 5
 # LAYERS_TO_FREEZE = []
 N_LAYERS_TO_FREEZE = 4
 LAYERS_TO_FREEZE = [
-    # 'conv1',
-    # 'bn1',
+    'conv1',
+    'bn1',
     *[f'layer{idx}' for idx in range(1, N_LAYERS_TO_FREEZE)]
 ]
 
@@ -100,7 +100,7 @@ def replace_zeros_with_mean(y, n_labels: int, flatten: bool = False, to_tensor: 
     return no_zero_y
 
 
-def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, rgb_projection_layer,  optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
+def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, rgb_projection_layer,  optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
     best_epch = 1
     best_loss = np.inf
 
@@ -161,8 +161,6 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
         val_btch_losses = np.array([])
         with torch.no_grad():
             for (X, Y) in val_data:
-                X = np.fft.fft(X)
-                X = torch.as_tensor(X, dtype=torch.float32)
                 X = X.to(device)
                 Y = replace_zeros_with_mean(
                     y=Y,
@@ -185,6 +183,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
         val_loss_stds = np.append(val_loss_stds, val_btch_loss_std)
 
         print(f'''
+        ==== CV Fold: {cv_fold} ====
         > Mean Stats for epoch {epch}: 
             - Train loss = {train_btch_loss_mean:.5f}+/-{train_btch_loss_std:.6}
             - Val loss = {val_btch_loss_mean:.5f} + / -{val_btch_loss_std:.6}
@@ -220,7 +219,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.
     )
 
 
-def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, rgb_projection_layer,  device: torch.device, save_dir: pathlib.Path):
+def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, rgb_projection_layer,  device: torch.device, save_dir: pathlib.Path):
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
@@ -261,7 +260,7 @@ def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, lab
             metadata_columns = [f'{typ}_{lbl}' for (typ, lbl) in itertools.product(['true', 'pred'], labels)]
 
             metadata_df = pd.concat([metadata_df, pd.DataFrame(columns=metadata_columns, data=np.hstack([true.reshape(len(labels), -1).T, pred.reshape(len(labels), -1).T]))])
-
+    print(f'==== CV Fold: {cv_fold} ====')
     print(f'> Test stats:\n{errors_df.describe()}')
 
     # - Save the metadata
@@ -271,7 +270,7 @@ def run_test(model: torch.nn.Module, test_data: torch.utils.data.DataLoader, lab
     return errors_df.reset_index(drop=True), metadata_df
 
 
-def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
+def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
                batch_size: int, weights, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
     # - Create the OUTPUT_DIR
     os.makedirs(save_dir, exist_ok=True)
@@ -347,6 +346,7 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
 
     # >  Train the model
     run_train(
+        cv_fold=cv_fold,
         model=mdl,
         epochs=train_epochs,
         train_data=train_dl,
@@ -386,6 +386,7 @@ def train_test(head_model, train_data_file: pathlib.Path, test_data_file: pathli
 
     # >  Test the model
     errs_df, _ = run_test(
+        cv_fold=cv_fold,
         model=mdl,
         test_data=test_dl,
         labels=labels,
@@ -406,6 +407,7 @@ def run_cv(cv_root_dir: pathlib.Path):
         test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
         if train_data_fl.is_file() and test_data_fl.is_file():
             cv_errs_df = train_test(
+                cv_fold=cv_fld,
                 head_model=MODEL,
                 train_data_file=train_data_fl,
                 test_data_file=test_data_fl,
