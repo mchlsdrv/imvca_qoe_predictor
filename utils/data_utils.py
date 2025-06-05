@@ -16,8 +16,8 @@ from transformers import AutoTokenizer
 
 from configs.params import OUTLIER_TH, EPSILON
 
-import warnings
-warnings.filterwarnings("ignore")
+# import warnings
+# warnings.filterwarnings("ignore")
 
 class EncRowDS(torch.utils.data.Dataset):
     def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, chanel_mode: bool = False, p_noise: float = 0.0, p_row_shuffle: float = 0.0):
@@ -64,7 +64,7 @@ class EncRowDS(torch.utils.data.Dataset):
     def transforms(self, X, Y):
         # try:
         # - BoxCox
-        X_trans, _ = scipy.stats.boxcox(X[X > 0])
+        X_trans, _ = scipy.stats.boxcox(X[X > 0].astype(np.float64))
         X[X > 0] = X_trans.astype(np.float32)
 
         # - Normalize features

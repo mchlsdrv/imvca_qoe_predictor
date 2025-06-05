@@ -7,11 +7,22 @@ import torch.utils.data
 import sklearn
 from tqdm import tqdm
 
-from configs.params import LR_REDUCTION_FREQUENCY, LR_REDUCTION_FACTOR, DROPOUT_EPOCH_START, DROPOUT_P_INIT, OUTLIER_TH, \
-    LR_REDUCTION_FACTOR, DROPOUT_EPOCH_START
+from configs.params import (
+    LR_REDUCTION_FREQUENCY,
+    DROPOUT_P_INIT,
+    OUTLIER_TH,
+    LR_REDUCTION_FACTOR,
+    DROPOUT_EPOCH_START,
+)
 from utils.regression_utils import calc_errors
 from utils.aux_funcs import plot_losses
-from utils.data_utils import calc_data_reduction, normalize_columns, get_data, get_input_data, remove_outliers
+from utils.data_utils import (
+    calc_data_reduction,
+    normalize_columns,
+    get_data,
+    get_input_data,
+    remove_outliers
+)
 
 
 def save_checkpoint(model, optimizer, filename: str or pathlib.Path):

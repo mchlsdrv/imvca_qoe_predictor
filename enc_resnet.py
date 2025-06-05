@@ -17,7 +17,9 @@ from configs.params import (
     DEVICE,
     CV_ROOT_DIR,
     OUTPUT_DIR,
-    DROP_SCHEDULE, EPSILON
+    DROP_SCHEDULE,
+    EPSILON,
+    RANDOM_SEED
 )
 from models import EncResNet
 from utils.data_utils import get_train_val_split, EncRowDS
@@ -25,6 +27,7 @@ from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
 from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
 
+np.random.seed(RANDOM_SEED)
 
 # - LOCAL HYPERPARAMETERS
 # -- Features
