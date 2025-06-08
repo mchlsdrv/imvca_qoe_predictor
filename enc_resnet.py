@@ -33,7 +33,7 @@ np.random.seed(RANDOM_SEED)
 # -- Features
 
 # EXP_NAME = 'piat_mape_brisque'
-EXP_NAME = 'pckt_sz_resent16_frz_lyr_4_boxcox_norm_fourier_std_brisque'
+EXP_NAME = 'pckt_sz_resent16_frz_lyr_4_boxcox_norm_fourier_std_prog_lr_brisque'
 # EXP_NAME = 'pckt_sz_mape_loss_no_samp'
 if EXP_NAME.startswith('pckt_sz'):
     FEATURES = MICRO_PCKT_SZ_FEATURES
@@ -433,6 +433,11 @@ def run_cv(cv_root_dir: pathlib.Path):
 
     errors_df.reset_index(drop=True)
     errors_df.to_csv(save_dir / 'final_errors.csv', index=False)
+
+    print(f'=====================================')
+    print(f'> Final {len(cv_dirs)}-fold CV Stats')
+    print(f'{errors_df.describe()}')
+    print(f'=====================================')
 
 
 if __name__ == '__main__':
