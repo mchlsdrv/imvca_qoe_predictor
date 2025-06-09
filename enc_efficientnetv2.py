@@ -5,7 +5,6 @@ import pathlib
 import numpy as np
 import pandas as pd
 import torch
-import torchvision
 from tqdm import tqdm
 
 from configs.params import (
@@ -22,7 +21,7 @@ from configs.params import (
     RANDOM_SEED
 )
 
-from models import EncResNet
+from models import EncEfficientNetV2
 from utils.data_utils import get_train_val_split, EncRowDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
@@ -50,16 +49,10 @@ LABELS = [
 ]
 
 # -- Head model parameters
-# MODEL = torchvision.models.resnet34
-# WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
-
-MODEL = torchvision.models.resnet18
-WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
-# WEIGHTS = None
+ARCHITECTURE = 's'
 
 IMAGE_SIZE = 5
 
-# LAYERS_TO_FREEZE = []
 N_LAYERS_TO_FREEZE = 4
 LAYERS_TO_FREEZE = [
     'conv1',
@@ -71,17 +64,10 @@ LAYERS_TO_FREEZE = [
 EPOCHS = 150
 INITIAL_LEARNING_RATE = 1e-3
 OPTIMIZER = torch.optim.Adam
-# LOSS_FUNCTION = MSELoss()
 LOSS_FUNCTION = MAPELoss()
 
 AUG_P_NOISE = 0.2
 AUG_P_ROW_SHUFFLE = 0.2
-
-# - CHECKS
-# LOSS_FUNCTION(torch.as_tensor([50, 45, 17], dtype=torch.float32), torch.as_tensor([78, 35, 14], dtype=torch.float32))
-
-# for epch in [3, 20, 51, 81, 82, 83, 90]:
-#     reduce_lr(optimizer=OPTIMIZER, epoch=epch, schedules=LR_SCHEDULES)
 
 
 def replace_zeros_with_mean(y, n_labels: int, flatten: bool = False, to_tensor: bool = False):
@@ -274,8 +260,8 @@ def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.D
     return errors_df.reset_index(drop=True), metadata_df
 
 
-def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
-               batch_size: int, weights, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
+def train_test(cv_fold: int, architecture, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
+               batch_size: int, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
     # - Create the OUTPUT_DIR
     os.makedirs(save_dir, exist_ok=True)
     # - Train
@@ -335,16 +321,17 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
     )
 
     # >  Get the model
-    head_mdl = head_model(weights=weights)
-    mdl = EncResNet(
-        head_model=head_mdl,
+    mdl = EncEfficientNetV2(
+        architecture=architecture,
         in_channels=3,
-        out_size=len(labels)
+        out_size=len(labels),
+        pretrained=True,
+        freeze_layers=True
     )
 
     # >  If this parameter is supplied - freeze the corresponding layers
-    if isinstance(layers_to_freeze, list):
-        freeze_layers(model=mdl.mdl, layers=layers_to_freeze)
+    # if isinstance(layers_to_freeze, list):
+    #     freeze_layers(model=mdl.mdl, layers=layers_to_freeze)
 
     mdl.to(device)
 
@@ -412,7 +399,7 @@ def run_cv(cv_root_dir: pathlib.Path):
         if train_data_fl.is_file() and test_data_fl.is_file():
             cv_errs_df = train_test(
                 cv_fold=cv_fld,
-                head_model=MODEL,
+                architecture=ARCHITECTURE,
                 train_data_file=train_data_fl,
                 test_data_file=test_data_fl,
                 features=FEATURES,
@@ -423,7 +410,6 @@ def run_cv(cv_root_dir: pathlib.Path):
                 optimizer=OPTIMIZER,
                 initial_learning_rate=INITIAL_LEARNING_RATE,
                 batch_size=BATCH_SIZE,
-                weights=WEIGHTS,
                 layers_to_freeze=LAYERS_TO_FREEZE,
                 device=DEVICE,
                 save_dir=save_dir / f'cv{cv_fld}'

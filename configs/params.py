@@ -11,6 +11,8 @@ from models import QoENet1D, EncResNet
 # -----------
 # - GENERAL -
 # -----------
+DEBUG = False
+IGNORE_WARNINGS = False
 EPSILON = 1e-9
 RANDOM_SEED = 0
 
@@ -22,9 +24,10 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # - DATA -
 # --------
 # -- Platform
-PLATFORM = 'linux'
-# PLATFORM = 'mac'
+# PLATFORM = 'linux'
+PLATFORM = 'mac'
 # PLATFORM = 'windows'
+
 PATHS = {
     'linux': {
         'train_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv'),

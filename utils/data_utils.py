@@ -1,8 +1,8 @@
-import datetime
 import os
-import pathlib
 import time
-
+import datetime
+import warnings
+import pathlib
 import torch
 import torch.utils.data
 import numpy as np
@@ -13,11 +13,10 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import scipy
 from tqdm import tqdm
 from transformers import AutoTokenizer
+from configs.params import OUTLIER_TH, EPSILON, IGNORE_WARNINGS
 
-from configs.params import OUTLIER_TH, EPSILON
-
-# import warnings
-# warnings.filterwarnings("ignore")
+if IGNORE_WARNINGS:
+    warnings.filterwarnings("ignore")
 
 class EncRowDS(torch.utils.data.Dataset):
     def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, chanel_mode: bool = False, p_noise: float = 0.0, p_row_shuffle: float = 0.0):

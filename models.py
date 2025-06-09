@@ -1,47 +1,67 @@
-import os
 import pathlib
 import numpy as np
 import torch
-import matplotlib
-import matplotlib.pyplot as plt
 import torchvision.models
 from torch_geometric.nn import GCNConv
 from transformers import AutoConfig, AutoModel
 from sklearn.neighbors import KNeighborsClassifier
 
-matplotlib.use('Agg')
-plt.style.use('ggplot')
 
 
 class EncEfficientNetV2(torch.nn.Module):
-    def __init__(self, head_model, in_channels: int,  out_size: int):
+    def __init__(self, architecture: str, in_channels: int,  out_size: int, pretrained: bool = False, freeze_layers: bool = False):
         super().__init__()
 
-        self.mdl = head_model
+        self.base_mdl = None
+        if architecture == 's':
+            self.base_mdl = torchvision.models.efficientnet_v2_s
+            self.weights = torchvision.models.EfficientNet_V2_S_Weights.IMAGENET1K_V1
+        elif architecture == 'm':
+            self.base_mdl = torchvision.models.efficientnet_v2_m
+            self.weights = torchvision.models.EfficientNet_V2_M_Weights.IMAGENET1K_V1
+        elif architecture == 'l':
+            self.base_mdl = torchvision.models.efficientnet_v2_l
+            self.weights = torchvision.models.EfficientNet_V2_L_Weights.IMAGENET1K_V1
         self.in_chnls = in_channels
         self.out_sz = out_size
+        self.pretrained = pretrained
+        self.freeze_layers = freeze_layers
 
-        self.make_model()
+        if self.base_mdl is not None:
+            self.make_model()
 
     def make_model(self):
-        fst_lyr = self.mdl.conv1
-        self.mdl.conv1 = torch.nn.Conv2d(
-            self.in_chnls,
-            fst_lyr.out_channels,
-            kernel_size=(fst_lyr.kernel_size[0], fst_lyr.kernel_size[1]),
-            stride=(fst_lyr.stride[0], fst_lyr.stride[1]),
-            padding=fst_lyr.padding,
-            bias=False if fst_lyr.bias is None else fst_lyr.bias
-        )
+        # - Load the weights
+        if self.pretrained:
+            self.base_mdl = self.base_mdl(weights=self.weights)
+        else:
+            self.base_mdl = self.base_mdl()
 
-        lst_lyr = self.mdl.fc
-        self.mdl.fc = torch.nn.Linear(
-            lst_lyr.in_features,
-            self.out_sz
+
+        # - Freeze all the layers
+        if self.freeze_layers:
+            for param in self.base_mdl.parameters():
+                param.requires_grad = False
+
+        # - Modify the stem (first conv) to handle 5x5 input
+        # Default: Conv2d(3, 24, kernel_size=3, stride=2, padding=1)
+        # Change stride 3->1 so that 5x5 input doesn't collapse
+        new_conv = torch.nn.Conv2d(
+            in_channels=self.in_chnls, out_channels=24, kernel_size=3, stride=1, padding=1, bias=False
+        )
+        torch.nn.init.kaiming_normal_(new_conv.weight, mode='fan_out', nonlinearity='relu')
+        self.base_mdl.features[0][0] = new_conv
+
+        # - Replace the head (predictor layer) with regression
+        in_feats = self.base_mdl.classifier[1].in_features
+        self.base_mdl.classifier = torch.nn.Sequential(
+            torch.nn.Linear(in_feats, 64),
+            torch.nn.ReLU(),
+            torch.nn.Linear(64, 1)
         )
 
     def forward(self, x, p_drop):
-        x = self.mdl(x)
+        x = self.base_mdl(x)
         x = torch.nn.functional.dropout(x, p=p_drop, training=self.training)
         return x
 
