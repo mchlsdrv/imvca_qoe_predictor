@@ -4,12 +4,46 @@ import numpy as np
 import torch
 import matplotlib
 import matplotlib.pyplot as plt
+import torchvision.models
 from torch_geometric.nn import GCNConv
 from transformers import AutoConfig, AutoModel
 from sklearn.neighbors import KNeighborsClassifier
 
 matplotlib.use('Agg')
 plt.style.use('ggplot')
+
+
+class EncEfficientNetV2(torch.nn.Module):
+    def __init__(self, head_model, in_channels: int,  out_size: int):
+        super().__init__()
+
+        self.mdl = head_model
+        self.in_chnls = in_channels
+        self.out_sz = out_size
+
+        self.make_model()
+
+    def make_model(self):
+        fst_lyr = self.mdl.conv1
+        self.mdl.conv1 = torch.nn.Conv2d(
+            self.in_chnls,
+            fst_lyr.out_channels,
+            kernel_size=(fst_lyr.kernel_size[0], fst_lyr.kernel_size[1]),
+            stride=(fst_lyr.stride[0], fst_lyr.stride[1]),
+            padding=fst_lyr.padding,
+            bias=False if fst_lyr.bias is None else fst_lyr.bias
+        )
+
+        lst_lyr = self.mdl.fc
+        self.mdl.fc = torch.nn.Linear(
+            lst_lyr.in_features,
+            self.out_sz
+        )
+
+    def forward(self, x, p_drop):
+        x = self.mdl(x)
+        x = torch.nn.functional.dropout(x, p=p_drop, training=self.training)
+        return x
 
 
 class EncResNet(torch.nn.Module):
