@@ -21,7 +21,15 @@ b = B.iloc[0:3, :].T.values.reshape(-1, 3, 3)
 b
 c = np.array(list(map(lambda x: x.T, b)))
 c
-
+for col in c[0]:
+    if np.random.random() > 0.5:
+        print(col)
+        np.random.shuffle(col)
+    
+c
+np.random.shuffle(c.T)
+c
+c.T
 c = np.array(
     [
         [1, 300, 3 ], 
