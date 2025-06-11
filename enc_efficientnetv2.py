@@ -261,7 +261,7 @@ def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.D
 
 
 def train_test(cv_fold: int, architecture, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
-               batch_size: int, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
+               batch_size: int, device: torch.device, save_dir: pathlib.Path):
     # - Create the OUTPUT_DIR
     os.makedirs(save_dir, exist_ok=True)
     # - Train
@@ -285,7 +285,7 @@ def train_test(cv_fold: int, architecture, train_data_file: pathlib.Path, test_d
     ).to(device)
 
     # >  Train data
-    train_ds=EncRowDS(
+    train_ds = EncRowDS(
         data=train_df,
         features=features,
         labels=labels,
@@ -303,7 +303,7 @@ def train_test(cv_fold: int, architecture, train_data_file: pathlib.Path, test_d
     )
 
     # >  Val data
-    val_ds=EncRowDS(
+    val_ds = EncRowDS(
         data=val_df,
         features=features,
         labels=labels,
@@ -358,7 +358,6 @@ def train_test(cv_fold: int, architecture, train_data_file: pathlib.Path, test_d
 
     # >  Train data
     test_ds=EncRowDS(
-    # test_ds = EncDS(
         data=test_data_df,
         features=features,
         labels=labels,
