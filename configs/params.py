@@ -139,15 +139,15 @@ PACKET_SIZE_FEATURES = [
 ]
 
 PIAT_FEATURES = [
-    'number_of_piats_in_time_window',
-    'number_of_unique_piats_in_time_window',
-    'min_piat',
-    'max_piat',
-    'mean_piat',
-    'std_piat',
-    'q1_piat',
-    'q2_piat',
-    'q3_piat',
+    'number of piats in time window',
+    'number of unique piats in time window',
+    'min piat',
+    'max piat',
+    'mean piat',
+    'std piat',
+    'Q1 piat',
+    'Q2 piat',
+    'Q3 piat',
 ]
 
 MICRO_PIAT_FEATURES = [f'piat_{i}' for i in range(1, 351)]

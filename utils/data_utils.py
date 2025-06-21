@@ -3,6 +3,8 @@ import time
 import datetime
 import warnings
 import pathlib
+
+import matplotlib.pyplot as plt
 import torch
 import torch.utils.data
 import numpy as np
@@ -61,21 +63,40 @@ class EncRowDS(torch.utils.data.Dataset):
         return X, Y
 
     def transforms(self, X, Y):
-        # try:
-        # - BoxCox
+        # pth = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/plots')
+
+        # plt.bar(np.arange(len(X)), X)
+        # plt.savefig(pth / 'before_box_cox.png')
+        # plt.close()
+
         X_trans, _ = scipy.stats.boxcox(X[X > 0].astype(np.float64))
         X[X > 0] = X_trans.astype(np.float32)
+        # plt.bar(np.arange(len(X)), X)
+        # plt.savefig(pth / 'after_box_cox.png')
+        # plt.close()
 
         # - Normalize features
-        self.min_max_scaler.fit(np.expand_dims(X, -1))
-        X = self.min_max_scaler.transform(np.expand_dims(X, -1))
+        # self.min_max_scaler.fit(np.expand_dims(X, -1))
+        # X = self.min_max_scaler.transform(np.expand_dims(X, -1))
+        #
+        # plt.bar(np.arange(len(X[:, 0])), X[:, 0])
+        # plt.savefig(pth / 'after_min_max.png')
+        # plt.close()
 
         # - Convert to frequency domain
         X = np.fft.fft(X)
 
+        # plt.bar(np.arange(len(X.real)), X.real)
+        # plt.savefig(pth / 'after_box_cox_fourier.png')
+        # plt.close()
+
         # - Standardize the features
-        self.std_scaler.fit(np.real(X))
-        X = self.std_scaler.transform(np.real(X))
+        self.std_scaler.fit(np.real(np.expand_dims(X, -1)))
+        X = self.std_scaler.transform(np.real(np.expand_dims(X, -1)))
+
+        # plt.bar(np.arange(len(X[:, 0])), X[:, 0])
+        # plt.savefig(pth / 'after_box_cox_fourier_std.png')
+        # plt.close()
 
         if self.chnl_md:
             X = X.reshape(self.n_chnls, self.img_sz, self.img_sz)
