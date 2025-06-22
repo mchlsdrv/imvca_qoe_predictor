@@ -2,7 +2,7 @@ import os
 import datetime
 import pathlib
 from configs.params import VAL_PROP, PACKET_SIZE_FEATURES, PIAT_FEATURES
-from models import GCNRegressor
+from core.models import GCNRegressor
 import torch
 from utils.train_utils import run_cv
 

@@ -41,17 +41,33 @@ class EncRowDS(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.data) - self.img_sz
 
+    def make_dataset(self):
+        # - Drop N/As
+        self.data = self.data.dropna()
+
+        # - Split the data into features and labels
+        self.feats = self.data.loc[:, self.feat_cols]
+        self.lbls = self.data.loc[:, self.lbl_cols]
+
+        # - Calculate the number of channels
+        self.n_chnls = self.feats.shape[-1] // self.img_sz ** 2
+
+    def __getitem__(self, index):
+        X = self.feats.iloc[index, :].T.values
+        Y = self.lbls.iloc[index, :].T.values
+
+        X, Y = self.augmentations(X=X, Y=Y)
+
+        X, Y = self.transforms(X=X, Y=Y)
+
+        return X, Y
+
     def augmentations(self, X, Y):
         X, Y = X.astype(np.float32), Y.astype(np.float32)
         # - Apply random noise addition to the values in each row with probability self.p_smpl
         p = np.random.random()
         if p < self.p_noise:
-            # rnd_err = np.array([complex(a, b) for a, b in zip(np.random.randn(len(X)), np.random.randn(len(X)))])
-            # X += rnd_err  # (np.random.randn(len(X)) + 1.0* j * np.random.randn(len(X)))
             X += np.random.randn(len(X))
-            # X += np.random.random(len(X))
-            # - Sample labels based on pretrained sampler
-            # Y = self.sampler.predict(np.expand_dims(X.T, 0))
 
         # - Apply random shuffle to the values in each row with probability self.p_shuf
         p = np.random.random()
@@ -88,30 +104,6 @@ class EncRowDS(torch.utils.data.Dataset):
         Y = torch.as_tensor(Y, dtype=torch.float32)
 
         return X, Y
-
-    def __getitem__(self, index):
-        X = self.feats.iloc[index, :].T.values
-        Y = self.lbls.iloc[index, :].T.values
-
-        X, Y = self.augmentations(X=X, Y=Y)
-
-        X, Y = self.transforms(X=X, Y=Y)
-
-        return X, Y
-
-    def make_dataset(self):
-        # - Drop N/As
-        self.data = self.data.dropna()
-
-        # - Split the data into features and labels
-        self.feats = self.data.loc[:, self.feat_cols]
-        self.lbls = self.data.loc[:, self.lbl_cols]
-
-        # - Calculate the number of channels
-        self.n_chnls = self.feats.shape[-1] // self.img_sz ** 2
-
-        # # - Normalize the features
-        # self.feats = (self.feats - self.feats.mean()) / (self.feats.std() + EPSILON)
 
 
 class EncDS(torch.utils.data.Dataset):

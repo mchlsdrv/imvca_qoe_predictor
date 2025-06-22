@@ -2,7 +2,7 @@ import os
 import datetime
 import pathlib
 from configs.params import VAL_PROP, PACKET_SIZE_FEATURES, PIAT_FEATURES
-from models import QoENet1D
+from core.models import QoENet1D
 from utils.train_utils import run_cv
 import torch
 

@@ -11,26 +11,26 @@ class SelfAttention(torch.nn.Module):
     def __init__(self, embedding_size: int, number_of_heads: int):
         super().__init__()
         assert (embedding_size % number_of_heads == 0), "embedding_size needs to be divisible by number_of_heads"
-        self.embedding_size = embedding_size
-        self.heads = number_of_heads
-        self.head_dim = embedding_size // number_of_heads
+        self.embed_sz = embedding_size
+        self.n_heads = number_of_heads
+        self.head_dims = embedding_size // number_of_heads
 
         # - Make the Values, Keys and Queries matrices
-        self.values = torch.nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.keys = torch.nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.queries = torch.nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.values = torch.nn.Linear(self.head_dims, self.head_dims, bias=False)
+        self.keys = torch.nn.Linear(self.head_dims, self.head_dims, bias=False)
+        self.queries = torch.nn.Linear(self.head_dims, self.head_dims, bias=False)
 
         # - Output layer
-        self.fc_out = torch.nn.Linear(number_of_heads * self.head_dim, embedding_size)
+        self.fc_out = torch.nn.Linear(self.n_heads * self.head_dims, self.embed_sz)
 
     def forward(self, values, keys, queries, mask: torch.Tensor):
         N = queries.shape[0]
         val_len, key_len, query_len = values.shape[1], keys.shape[1], queries.shape[1]
 
         # - Split embedding into self.heads pieces
-        values = values.reshape(N, val_len, self.heads, self.head_dim)
-        keys = keys.reshape(N, key_len, self.heads, self.head_dim)
-        queries = queries.reshape(N, query_len, self.heads, self.head_dim)
+        values = values.reshape(N, val_len, self.n_heads, self.head_dims)
+        keys = keys.reshape(N, key_len, self.n_heads, self.head_dims)
+        queries = queries.reshape(N, query_len, self.n_heads, self.head_dims)
 
         # - Send through the linear layers
         values = self.values(values)
@@ -46,13 +46,13 @@ class SelfAttention(torch.nn.Module):
         if mask is not None:
             energy = energy.masked_fill(mask == 0, float('-1e20'))
 
-        attention = torch.softmax(energy / (self.embedding_size ** (1/2)), dim=3)
+        attention = torch.softmax(energy / (self.embed_sz ** (1/2)), dim=3)
 
         # - The shapes are:
         # attention: (N, heads, query_len, key_len)
         # values: (N, val_len, heads, heads_dim) {key_len == val_len}
         # out: (N, query_len, heads, head_dim)
-        out = torch.einsum('nhql, nlhd -> nqhd', [attention, values]).reshape(N, query_len, self.heads * self.head_dim)
+        out = torch.einsum('nhql, nlhd -> nqhd', [attention, values]).reshape(N, query_len, self.n_heads * self.head_dims)
 
         # - Run it through the out layer
         out = self.fc_out(out)
@@ -432,7 +432,8 @@ class AutoEncoder(torch.nn.Module):
         def code_length(self, value):
             self._code_length = value
 
-    def __init__(self, model_name: str, n_features, code_length, layer_activation, reverse: bool = False, save_dir: str or pathlib.Path = pathlib.Path('./output')):
+    def __init__(self, model_name: str, n_features, code_length, layer_activation, reverse: bool = False, save_dir: str or pathlib.Path = pathlib.Path(
+        '../output')):
         super().__init__()
         self.model_name = model_name
         self.n_features = n_features

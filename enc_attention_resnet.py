@@ -22,7 +22,7 @@ from configs.params import (
     RANDOM_SEED
 )
 
-from models import EncResNet
+from core.models import EncResNet
 from utils.data_utils import get_train_val_split, EncRowDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
@@ -279,17 +279,17 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
     # - Create the OUTPUT_DIR
     os.makedirs(save_dir, exist_ok=True)
     # - Train
-    # >  Load the train dataframe
+    # > Load the train dataframe
     train_data_df = pd.read_csv(train_data_file)
 
     # - Filter NaNs and samples with Kbps < 0
     train_data_df.dropna(inplace=True)
     train_data_df = train_data_df[train_data_df.loc[:, 'kbps'] > 0]
 
-    # >  Get only the features and the labels
+    # > Get only the features and the labels
     train_data_df = train_data_df.loc[:, [*features, *labels]]
 
-    # >  Split the train data into train and validation datasets
+    # > Split the train data into train and validation datasets
     train_df, val_df = get_train_val_split(data=train_data_df, validation_proportion=0.2)
 
     rgb_embed_lyr = torch.nn.Conv2d(
@@ -298,7 +298,7 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         kernel_size=1
     ).to(device)
 
-    # >  Train data
+    # > Train data
     train_ds=EncRowDS(
         data=train_df,
         features=features,
@@ -316,7 +316,7 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         num_workers=4
     )
 
-    # >  Val data
+    # > Val data
     val_ds=EncRowDS(
         data=val_df,
         features=features,
@@ -334,7 +334,7 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         num_workers=4
     )
 
-    # >  Get the model
+    # > Get the model
     head_mdl = head_model(weights=weights)
     mdl = EncResNet(
         head_model=head_mdl,
@@ -342,13 +342,13 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         out_size=len(labels)
     )
 
-    # >  If this parameter is supplied - freeze the corresponding layers
+    # > If this parameter is supplied - freeze the corresponding layers
     if isinstance(layers_to_freeze, list):
         freeze_layers(model=mdl.mdl, layers=layers_to_freeze)
 
     mdl.to(device)
 
-    # >  Train the model
+    # > Train the model
     run_train(
         cv_fold=cv_fold,
         model=mdl,
@@ -363,13 +363,13 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
     )
 
     # - Test
-    # >  Load the train dataframe
+    # > Load the train dataframe
     test_data_df = pd.read_csv(test_data_file)
 
-    # >  Get only the features and the labels
+    # > Get only the features and the labels
     test_data_df = test_data_df.loc[:, [*features, *labels]]
 
-    # >  Train data
+    # > Train data
     test_ds=EncRowDS(
     # test_ds = EncDS(
         data=test_data_df,
@@ -388,7 +388,7 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         num_workers=1
     )
 
-    # >  Test the model
+    # > Test the model
     errs_df, _ = run_test(
         cv_fold=cv_fold,
         model=mdl,

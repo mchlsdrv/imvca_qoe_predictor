@@ -3,9 +3,9 @@ import pathlib
 
 import torchvision
 
-from configs.params import MODELS, TS, MICRO_PCKT_SZ_FEATURES, LABELS, DEVICE
+from configs.params import TS, MICRO_PCKT_SZ_FEATURES, LABELS, DEVICE
 from enc_resnet import IMAGE_SIZE
-from models import EncResNet
+from core.models import EncResNet
 from utils.train_utils import run_cv
 
 MODEL_NAME = 'EncResNet'
