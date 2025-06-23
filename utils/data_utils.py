@@ -14,23 +14,28 @@ import scipy
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from configs.params import OUTLIER_TH, EPSILON, IGNORE_WARNINGS
+from core.models import SelfAttention
 
 if IGNORE_WARNINGS:
     warnings.filterwarnings("ignore")
 
 class EncRowDS(torch.utils.data.Dataset):
-    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, chanel_mode: bool = False, p_noise: float = 0.0, p_row_shuffle: float = 0.0):
+    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, embedding_size: int, number_of_heads: int, p_noise: float, p_row_shuffle: float):
         super().__init__()
 
         self.data = data
         self.feat_cols = features
         self.lbl_cols = labels
         self.img_sz = image_size
-        self.min_max_scaler = MinMaxScaler()
-        self.std_scaler = StandardScaler()
+
+        # - Augs
         self.p_noise = p_noise
         self.p_row_shuf = p_row_shuffle
-        self.chnl_md = chanel_mode
+
+        # - Transforms
+        self.min_max_scaler = MinMaxScaler()
+        self.std_scaler = StandardScaler()
+        self.attention = SelfAttention(embedding_size=embedding_size, number_of_heads=number_of_heads)
 
         self.feats = None
         self.lbls = None
@@ -93,9 +98,12 @@ class EncRowDS(torch.utils.data.Dataset):
         self.std_scaler.fit(np.real(X))
         X = self.std_scaler.transform(np.real(X))
 
-        if self.chnl_md:
-            X = X.reshape(self.n_chnls, self.img_sz, self.img_sz)
-            X = np.array(list(map(lambda x: x.T, X)))  # change the order of the features to represent joint events
+        X = self.attention()
+        att = self.attention(X, X, X, target_mask)
+
+        # if self.chnl_md:
+        #     X = X.reshape(self.n_chnls, self.img_sz, self.img_sz)
+        #     X = np.array(list(map(lambda x: x.T, X)))  # change the order of the features to represent joint events
 
         Y = Y.flatten()
 

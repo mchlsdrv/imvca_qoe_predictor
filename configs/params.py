@@ -24,8 +24,8 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # - DATA -
 # --------
 # -- Platform
-PLATFORM = 'linux'
-# PLATFORM = 'mac'
+# PLATFORM = 'linux'
+PLATFORM = 'mac'
 # PLATFORM = 'windows'
 
 PATHS = {
