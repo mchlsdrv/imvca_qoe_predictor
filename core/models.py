@@ -94,7 +94,7 @@ class Encoder(torch.nn.Module):
 
         self.device = device
         self.word_embedding = torch.nn.Embedding(source_vocabulary_size, embedding_size)
-        self.position_embedding = torch.nn.Embedding(max_length, embedding_size)
+        self.position_embedding = torch.nn.Embedding(350, embedding_size)
         self.dropout = torch.nn.Dropout(p_dropout)
 
         self.layers = torch.nn.ModuleList(
@@ -107,6 +107,8 @@ class Encoder(torch.nn.Module):
         N, seq_len = X.shape
         pos = torch.arange(0, seq_len).expand(N, seq_len).to(self.device)
 
+        # out = self.dropout(X + pos)
+        # out = self.dropout(X + self.position_embedding(pos))
         out = self.dropout(self.word_embedding(X) + self.position_embedding(pos))
 
         for lyr in self.layers:
@@ -118,8 +120,8 @@ class Encoder(torch.nn.Module):
 class DecoderBlock(torch.nn.Module):
     def __init__(self, embedding_size, number_of_heads, forward_expansion, p_dropout, device):
         super().__init__()
-        self.att = SelfAttention(embedding_size=embedding_size, number_of_heads=number_of_heads)
-        self.norm = torch.nn.LayerNorm(embedding_size)
+        self.attention = SelfAttention(embedding_size=embedding_size, number_of_heads=number_of_heads)
+        self.norm_lyr = torch.nn.LayerNorm(embedding_size)
         self.trans_blk = TransformerBlock(
             embedding_size=embedding_size,
             number_of_heads=number_of_heads,
@@ -131,8 +133,8 @@ class DecoderBlock(torch.nn.Module):
 
     def forward(self, X, values, keys, source_mask, target_mask):
         att = self.attention(X, X, X, target_mask)
-        qrs = self.dropout(self.norm(att + X))
-        out = self.trans_block(values, keys, qrs, source_mask)
+        qrs = self.dropout(self.norm_lyr(att + X))
+        out = self.trans_blk(values, keys, qrs, source_mask)
         return out
 
 
@@ -154,7 +156,7 @@ class Decoder(torch.nn.Module):
     def forward(self, X, enc_out, src_mask, trg_mask):
         N, seq_length = X.shape
         pos = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
-        X = self.dropout((self.word_embedding(X) + self.position_embedding(pos)))
+        X = self.dropout((self.wrd_embed(X) + self.pos_embed(pos)))
 
         for lyr in self.lyrs:
             X = lyr(X, enc_out, enc_out, src_mask, trg_mask)
@@ -172,9 +174,9 @@ def get_source_mask(source: torch.Tensor, source_padding_index: int):
     return src_msk
 
 
-def get_target_mask(target: torch.Tensor, target_padding_index: int, target_length: int):
+def get_target_mask(target: torch.Tensor, target_padding_index: int):
     btch_sz, trg_len = target.shape
-    trg_msk = torch.tril(torch.ones((target_length, trg_len))).expand(btch_sz, 1, trg_len, trg_len)
+    trg_msk = torch.tril(torch.ones((trg_len, trg_len))).expand(btch_sz, 1, trg_len, trg_len)
 
     return trg_msk
 
@@ -187,51 +189,19 @@ class Transformer(torch.nn.Module):
 
         self.dec = Decoder(target_vocabulary_size=target_vocabulary_size, embedding_size=embedding_size, number_of_layers=number_of_layers, number_of_heads=number_of_heads, forward_expansion=forward_expansion, p_dropout=p_dropout, device=device, max_length=max_length)
 
-        self.src_pad_idx = source_padding_index
-        self.trg_pad_idx = target_padding_index
+        self.src_pad_idx = int(source_padding_index)
+        self.trg_pad_idx = int(target_padding_index)
         self.device = device
 
 
     def forward(self, source, target):
         src_msk = get_source_mask(source=source, source_padding_index=self.src_pad_idx)
-        trg_msk = get_target_mask(target=target, target_padding_index=self.trg_pad_idx, target_length=self.le)
+        trg_msk = get_target_mask(target=target, target_padding_index=self.trg_pad_idx)
         enc_src = self.enc(source, src_msk)
-        out = self.dec(trg, enc_src, src_msk, trg_msk)
+        out = self.dec(target, enc_src, src_msk, trg_msk)
 
         return out
 
-
-if __name__ == '__main__':
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    x = torch.tensor([[1, 5, 6, 4, 3, 9, 5, 2, 0], [1, 8, 7, 3, 4, 5, 6, 7, 2]]).to(device)
-    trg = torch.tensor([[1, 7, 4, 3, 5, 9, 2, 0], [1, 5, 6, 2, 4, 7, 6, 2]]).to(device)
-
-    SRC_PAD_IDX = 0
-    TRG_PAD_IDX = 0
-    SRC_VOCAB_SIZE = 10
-    TRG_VOCAB_SIZE = 10
-    EMBEDDING_SIZE = 256
-    NUMBER_OF_LAYERS = 6
-    NUMBER_OF_HEADS = 8
-    P_DROPOUT = 0
-    FORWARD_EXPANSION = 4
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Transformer(
-        SRC_VOCAB_SIZE,
-        TRG_VOCAB_SIZE,
-        SRC_PAD_IDX,
-        TRG_PAD_IDX,
-        embedding_size=EMBEDDING_SIZE,
-        number_of_layers=NUMBER_OF_LAYERS,
-        number_of_heads=NUMBER_OF_HEADS,
-        p_dropout=P_DROPOUT,
-        forward_expansion=FORWARD_EXPANSION,
-        device=DEVICE
-    ).to(device)
-
-    out = model(x, trg[:, :-1])
-    print(out)
 
 
 class EncEfficientNetV2(torch.nn.Module):
@@ -292,13 +262,15 @@ class EncEfficientNetV2(torch.nn.Module):
         return x
 
 
+
+
 class EncResNet(torch.nn.Module):
-    def __init__(self, head_model, in_channels: int,  out_size: int):
+    def __init__(self, head_model, in_channels: int,  out_channels: int):
         super().__init__()
 
         self.mdl = head_model
         self.in_chnls = in_channels
-        self.out_sz = out_size
+        self.out_chnls = out_channels
 
         self.make_model()
 
@@ -316,8 +288,12 @@ class EncResNet(torch.nn.Module):
         lst_lyr = self.mdl.fc
         self.mdl.fc = torch.nn.Linear(
             lst_lyr.in_features,
-            self.out_sz
+            self.out_chnls
         )
+        print(f'''
+- Model:
+{self.mdl}
+''')
 
     def forward(self, x, p_drop):
         x = self.mdl(x)
@@ -612,3 +588,76 @@ class TransformerForRegression(torch.nn.Module):
         outputs = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
         pooled_output = outputs.last_hidden_state[:, 0]
         return self.regressor(pooled_output)
+
+
+class EncAttentionNet(torch.nn.Module):
+    def __init__(self, head_model, embedding_size, number_of_heads):
+        super().__init__()
+
+        self.mdl = head_model
+        self.embd_sz = int(embedding_size)
+        self.n_heads = int(number_of_heads)
+        self.att_lyr = SelfAttention(embedding_size=self.embd_sz, number_of_heads=self.n_heads)
+        self.embd_lyr = torch.nn.Embedding(self.embd_sz, self.embd_sz)
+
+    def forward(self, X):
+        msk = get_target_mask(target=X, target_padding_index=0)
+        X = self.embd_lyr(X)
+        X = self.att_lyr(X, X, X, msk)
+
+        b, h, w = X.shape
+
+        X = self.mdl(X.view(b, 1, h, w), p_drop=0.0)
+
+        return X
+
+
+if __name__ == '__main__':
+    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+
+    SRC_PAD_IDX = 0
+    TRG_PAD_IDX = 0
+    SRC_VOCAB_SIZE = 350
+    TRG_VOCAB_SIZE = 350
+    EMBEDDING_SIZE = 350
+    NUMBER_OF_HEADS = 35
+    NUMBER_OF_LAYERS = 6
+    P_DROPOUT = 0
+    FORWARD_EXPANSION = 4
+
+    MODEL = torchvision.models.resnet18
+    WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
+
+    inputs = torch.tensor(np.random.randint(35, 350, (32, 350))).to(DEVICE)
+    label = torch.tensor(np.random.randint(35, 350, (32, 350))).to(DEVICE)
+
+    mdl = EncAttentionNet(
+        head_model=EncResNet(
+            head_model=MODEL(weights=WEIGHTS),
+            in_channels=1,
+            out_channels=1
+        ),
+        embedding_size=350,
+        number_of_heads=35
+    )
+
+    out = mdl(inputs)
+
+    print(out)
+
+#     model = Transformer(
+#     SRC_VOCAB_SIZE,
+#     TRG_VOCAB_SIZE,
+#     SRC_PAD_IDX,
+#     TRG_PAD_IDX,
+#     embedding_size=EMBEDDING_SIZE,
+#     number_of_layers=NUMBER_OF_LAYERS,
+#     number_of_heads=NUMBER_OF_HEADS,
+#     p_dropout=P_DROPOUT,
+#     forward_expansion=FORWARD_EXPANSION,
+#     device=DEVICE
+# ).to(DEVICE)
+#
+

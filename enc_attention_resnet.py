@@ -71,11 +71,14 @@ LAYERS_TO_FREEZE = [
 EPOCHS = 150
 INITIAL_LEARNING_RATE = 1e-3
 OPTIMIZER = torch.optim.Adam
-# LOSS_FUNCTION = MSELoss()
 LOSS_FUNCTION = MAPELoss()
 
 AUG_P_NOISE = 0.2
 AUG_P_ROW_SHUFFLE = 0.2
+
+EMBEDDING_SIZE = 350
+NUMBER_OF_HEADS = 35
+
 
 # - CHECKS
 # LOSS_FUNCTION(torch.as_tensor([50, 45, 17], dtype=torch.float32), torch.as_tensor([78, 35, 14], dtype=torch.float32))
@@ -304,7 +307,8 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         features=features,
         labels=labels,
         image_size=image_size,
-        chanel_mode=True,
+        embedding_size=EMBEDDING_SIZE,
+        number_of_heads=NUMBER_OF_HEADS,
         p_noise=AUG_P_NOISE,
         p_row_shuffle=AUG_P_ROW_SHUFFLE
     )
@@ -322,7 +326,8 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         features=features,
         labels=labels,
         image_size=image_size,
-        chanel_mode=True,
+        embedding_size=EMBEDDING_SIZE,
+        number_of_heads=NUMBER_OF_HEADS,
         p_noise=AUG_P_NOISE,
         p_row_shuffle=AUG_P_ROW_SHUFFLE
     )

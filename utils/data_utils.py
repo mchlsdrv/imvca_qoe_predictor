@@ -19,6 +19,12 @@ from core.models import SelfAttention
 if IGNORE_WARNINGS:
     warnings.filterwarnings("ignore")
 
+class AttentionDS(torch.utils.data.Dataset):
+    def __init__(self, features: pd.DataFrame, labels: pd.DataFrame):
+        super().__init__()
+        self.feats_df = features
+        self.lbls_df = labels
+
 class EncRowDS(torch.utils.data.Dataset):
     def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, embedding_size: int, number_of_heads: int, p_noise: float, p_row_shuffle: float):
         super().__init__()
