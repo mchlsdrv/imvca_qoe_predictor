@@ -1,4 +1,6 @@
 import pathlib
+import typing
+
 import numpy as np
 import torch
 import torchvision.models
@@ -594,20 +596,20 @@ class EncAttentionNet(torch.nn.Module):
     def __init__(self, head_model, embedding_size, number_of_heads):
         super().__init__()
 
-        self.mdl = head_model
+        self.head_mdl = head_model
         self.embd_sz = int(embedding_size)
         self.n_heads = int(number_of_heads)
+        self.embed_lyr = torch.nn.Conv2d(in_channels=1, out_channels=self.embd_sz, kernel_size=1)
         self.att_lyr = SelfAttention(embedding_size=self.embd_sz, number_of_heads=self.n_heads)
-        self.embd_lyr = torch.nn.Embedding(self.embd_sz, self.embd_sz)
 
-    def forward(self, X):
+    def forward(self, X, p_drop=0.0):
         msk = get_target_mask(target=X, target_padding_index=0)
-        X = self.embd_lyr(X)
+        X = self.embed_lyr(X.view(-1, X.shape[0], self.embd_sz)).transpose(0, 1)
         X = self.att_lyr(X, X, X, msk)
 
         b, h, w = X.shape
 
-        X = self.mdl(X.view(b, 1, h, w), p_drop=0.0)
+        X = self.head_mdl(X.view(b, 1, h, w), p_drop=p_drop)
 
         return X
 

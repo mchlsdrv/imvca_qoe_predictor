@@ -26,7 +26,7 @@ class AttentionDS(torch.utils.data.Dataset):
         self.lbls_df = labels
 
 class EncRowDS(torch.utils.data.Dataset):
-    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, embedding_size: int, number_of_heads: int, p_noise: float, p_row_shuffle: float):
+    def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, p_noise: float, p_row_shuffle: float):
         super().__init__()
 
         self.data = data
@@ -41,7 +41,6 @@ class EncRowDS(torch.utils.data.Dataset):
         # - Transforms
         self.min_max_scaler = MinMaxScaler()
         self.std_scaler = StandardScaler()
-        self.attention = SelfAttention(embedding_size=embedding_size, number_of_heads=number_of_heads)
 
         self.feats = None
         self.lbls = None
@@ -67,7 +66,7 @@ class EncRowDS(torch.utils.data.Dataset):
         X = self.feats.iloc[index, :].T.values
         Y = self.lbls.iloc[index, :].T.values
 
-        X, Y = self.augmentations(X=X, Y=Y)
+        # X, Y = self.augmentations(X=X, Y=Y)
 
         X, Y = self.transforms(X=X, Y=Y)
 
@@ -90,32 +89,28 @@ class EncRowDS(torch.utils.data.Dataset):
     def transforms(self, X, Y):
         # try:
         # - BoxCox
-        X_trans, _ = scipy.stats.boxcox(X[X > 0].astype(np.float64))
-        X[X > 0] = X_trans.astype(np.float32)
+        # X_trans, _ = scipy.stats.boxcox(X[X > 0].astype(np.float64))
+        # X[X > 0] = X_trans.astype(np.float32)
+        #
+        # # - Normalize features
+        # self.min_max_scaler.fit(np.expand_dims(X, -1))
+        # X = self.min_max_scaler.transform(np.expand_dims(X, -1))
+        #
+        # # - Convert to frequency domain
+        # X = np.fft.fft(X)
+        #
+        # # - Standardize the features
+        # self.std_scaler.fit(np.real(X))
+        # X = self.std_scaler.transform(np.real(X))
 
-        # - Normalize features
-        self.min_max_scaler.fit(np.expand_dims(X, -1))
-        X = self.min_max_scaler.transform(np.expand_dims(X, -1))
-
-        # - Convert to frequency domain
-        X = np.fft.fft(X)
-
-        # - Standardize the features
-        self.std_scaler.fit(np.real(X))
-        X = self.std_scaler.transform(np.real(X))
-
-        X = self.attention()
-        att = self.attention(X, X, X, target_mask)
-
-        # if self.chnl_md:
-        #     X = X.reshape(self.n_chnls, self.img_sz, self.img_sz)
-        #     X = np.array(list(map(lambda x: x.T, X)))  # change the order of the features to represent joint events
-
+        X = X.flatten()
         Y = Y.flatten()
 
         X = torch.as_tensor(X, dtype=torch.float32)
+        # X = torch.as_tensor(X, dtype=torch.int64)
 
         Y = torch.as_tensor(Y, dtype=torch.float32)
+        # Y = torch.as_tensor(Y, dtype=torch.int64)
 
         return X, Y
 

@@ -51,7 +51,7 @@ PATHS = {
         'data_root_dir': pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data'),
         'output_dir': pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet'),
         'experiments_dir': pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/experiments'),
-        'cv_root_dir': pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+        'cv_root_dir': pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/pckt_sz_cv_10_folds')
     },
 }
 OUTPUT_DIR = PATHS.get(PLATFORM)['output_dir']

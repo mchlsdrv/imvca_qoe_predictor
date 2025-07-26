@@ -1,4 +1,5 @@
 import argparse
+import os
 import pathlib
 
 import numpy as np
@@ -29,6 +30,15 @@ from configs.params import (
     DROPOUT_DELTA,
     DROPOUT_P_MAX, DROPOUT_P_INIT
 )
+
+
+def get_files(dir_path: pathlib.Path):
+    files = os.listdir(dir_path)
+    if '.DS_Store' in files:
+        os.remove(dir_path / '.DS_Store')
+        files = os.listdir(dir_path)
+
+    return files
 
 
 def freeze_params(params: list):

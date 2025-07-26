@@ -22,11 +22,11 @@ from configs.params import (
     RANDOM_SEED
 )
 
-from core.models import EncResNet
+from core.models import EncResNet, EncAttentionNet
 from utils.data_utils import get_train_val_split, EncRowDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
-from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop
+from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop, get_files
 
 np.random.seed(RANDOM_SEED)
 
@@ -107,7 +107,7 @@ def replace_zeros_with_mean(y, n_labels: int, flatten: bool = False, to_tensor: 
     return no_zero_y
 
 
-def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, rgb_projection_layer,  optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
+def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
     best_epch = 1
     best_loss = np.inf
 
@@ -138,9 +138,6 @@ def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torc
                 flatten=False,
                 to_tensor=True
             )
-            # - Project the X to create an RGB like image
-            X = rgb_projection_layer(X)
-
             Y = Y.to(device)
 
             # - Zero gradients for each batch
@@ -176,7 +173,6 @@ def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torc
                     to_tensor=True
                 )
                 Y = Y.to(device)
-                X = rgb_projection_layer(X)
 
                 outputs = model(X, p_drop)
 
@@ -226,7 +222,7 @@ def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torc
     )
 
 
-def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, rgb_projection_layer,  device: torch.device, save_dir: pathlib.Path):
+def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list,  device: torch.device, save_dir: pathlib.Path):
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
@@ -234,8 +230,6 @@ def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.D
     with torch.no_grad():
         for (X, Y) in test_data:
             X = X.to(device)
-
-            X = rgb_projection_layer(X)
 
             # - Get the predictions
             outputs = model(X, p_drop)
@@ -295,20 +289,18 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
     # > Split the train data into train and validation datasets
     train_df, val_df = get_train_val_split(data=train_data_df, validation_proportion=0.2)
 
-    rgb_embed_lyr = torch.nn.Conv2d(
-        in_channels=len(features) // image_size ** 2,
-        out_channels=3,
-        kernel_size=1
-    ).to(device)
-
+    # rgb_embed_lyr = torch.nn.Conv2d(
+    #     in_channels=len(features) // image_size ** 2,
+    #     out_channels=3,
+    #     kernel_size=1
+    # ).to(device)
+    #
     # > Train data
     train_ds=EncRowDS(
         data=train_df,
         features=features,
         labels=labels,
         image_size=image_size,
-        embedding_size=EMBEDDING_SIZE,
-        number_of_heads=NUMBER_OF_HEADS,
         p_noise=AUG_P_NOISE,
         p_row_shuffle=AUG_P_ROW_SHUFFLE
     )
@@ -326,8 +318,6 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         features=features,
         labels=labels,
         image_size=image_size,
-        embedding_size=EMBEDDING_SIZE,
-        number_of_heads=NUMBER_OF_HEADS,
         p_noise=AUG_P_NOISE,
         p_row_shuffle=AUG_P_ROW_SHUFFLE
     )
@@ -340,16 +330,26 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
     )
 
     # > Get the model
-    head_mdl = head_model(weights=weights)
-    mdl = EncResNet(
-        head_model=head_mdl,
-        in_channels=3,
-        out_size=len(labels)
+    # head_mdl = head_model(weights=weights)
+    mdl = EncAttentionNet(
+        head_model=EncResNet(
+            head_model=MODEL(weights=WEIGHTS),
+            in_channels=1,
+            out_channels=1
+        ),
+        embedding_size=350,
+        number_of_heads=35
     )
+
+    # mdl = EncResNet(
+    #     head_model=head_mdl,
+    #     in_channels=3,
+    #     out_size=len(labels)
+    # )
 
     # > If this parameter is supplied - freeze the corresponding layers
     if isinstance(layers_to_freeze, list):
-        freeze_layers(model=mdl.mdl, layers=layers_to_freeze)
+        freeze_layers(model=mdl.head_mdl.mdl, layers=layers_to_freeze)
 
     mdl.to(device)
 
@@ -360,9 +360,8 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         epochs=train_epochs,
         train_data=train_dl,
         val_data=val_dl,
-        optimizer=optimizer(filter(lambda p: p.requires_grad, [*mdl.parameters(), *rgb_embed_lyr.parameters()]), lr=initial_learning_rate),
+        optimizer=optimizer(filter(lambda p: p.requires_grad, [*mdl.parameters()]), lr=initial_learning_rate),
         loss_function=loss_function,
-        rgb_projection_layer=rgb_embed_lyr,
         device=device,
         save_dir=save_dir
     )
@@ -376,12 +375,10 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
 
     # > Train data
     test_ds=EncRowDS(
-    # test_ds = EncDS(
         data=test_data_df,
         features=features,
         labels=labels,
         image_size=image_size,
-        chanel_mode=True,
         p_noise=0.0,
         p_row_shuffle=0.0
     )
@@ -399,7 +396,6 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         model=mdl,
         test_data=test_dl,
         labels=labels,
-        rgb_projection_layer=rgb_embed_lyr,
         device=device,
         save_dir=save_dir
     )
@@ -408,7 +404,8 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
 
 def run_cv(cv_root_dir: pathlib.Path):
     cv_fld = 1
-    cv_dirs = os.listdir(cv_root_dir)
+    # cv_dirs = os.listdir(cv_root_dir)
+    cv_dirs = get_files(dir_path=cv_root_dir)
     errors_df = pd.DataFrame()
     save_dir = OUTPUT_DIR / f'{EXP_NAME}_{len(cv_dirs)}_cv_{TS}'
     for cv_dir in tqdm(cv_dirs):
