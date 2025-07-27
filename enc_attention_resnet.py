@@ -26,7 +26,7 @@ from core.models import EncResNet, EncAttentionNet
 from utils.data_utils import get_train_val_split, EncRowDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
-from utils.aux_funcs import freeze_layers, plot_losses, get_p_drop, get_files
+from utils.aux_funcs import plot_losses, get_p_drop, get_files
 
 np.random.seed(RANDOM_SEED)
 
@@ -34,7 +34,7 @@ np.random.seed(RANDOM_SEED)
 # -- Features
 
 # EXP_NAME = 'piat_mape_brisque'
-EXP_NAME = 'pckt_sz_resent16_frz_lyr_4_boxcox_norm_fourier_std_prog_lr_brisque'
+EXP_NAME = 'pckt_sz_attention_resent16_frz_lyr_4_brisque'
 # EXP_NAME = 'pckt_sz_mape_loss_no_samp'
 if EXP_NAME.startswith('pckt_sz'):
     FEATURES = MICRO_PCKT_SZ_FEATURES
@@ -68,7 +68,7 @@ LAYERS_TO_FREEZE = [
 ]
 
 # -- Train parameters
-EPOCHS = 150
+EPOCHS = 50
 INITIAL_LEARNING_RATE = 1e-3
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = MAPELoss()
@@ -271,8 +271,8 @@ def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.D
     return errors_df.reset_index(drop=True), metadata_df
 
 
-def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
-               batch_size: int, weights, layers_to_freeze: list, device: torch.device, save_dir: pathlib.Path):
+def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
+               batch_size: int, device: torch.device, save_dir: pathlib.Path):
     # - Create the OUTPUT_DIR
     os.makedirs(save_dir, exist_ok=True)
     # - Train
@@ -289,12 +289,6 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
     # > Split the train data into train and validation datasets
     train_df, val_df = get_train_val_split(data=train_data_df, validation_proportion=0.2)
 
-    # rgb_embed_lyr = torch.nn.Conv2d(
-    #     in_channels=len(features) // image_size ** 2,
-    #     out_channels=3,
-    #     kernel_size=1
-    # ).to(device)
-    #
     # > Train data
     train_ds=EncRowDS(
         data=train_df,
@@ -329,38 +323,15 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
         num_workers=4
     )
 
-    # > Get the model
-    # head_mdl = head_model(weights=weights)
-    mdl = EncAttentionNet(
-        head_model=EncResNet(
-            head_model=MODEL(weights=WEIGHTS),
-            in_channels=1,
-            out_channels=1
-        ),
-        embedding_size=350,
-        number_of_heads=35
-    )
-
-    # mdl = EncResNet(
-    #     head_model=head_mdl,
-    #     in_channels=3,
-    #     out_size=len(labels)
-    # )
-
-    # > If this parameter is supplied - freeze the corresponding layers
-    if isinstance(layers_to_freeze, list):
-        freeze_layers(model=mdl.head_mdl.mdl, layers=layers_to_freeze)
-
-    mdl.to(device)
 
     # > Train the model
     run_train(
         cv_fold=cv_fold,
-        model=mdl,
+        model=model,
         epochs=train_epochs,
         train_data=train_dl,
         val_data=val_dl,
-        optimizer=optimizer(filter(lambda p: p.requires_grad, [*mdl.parameters()]), lr=initial_learning_rate),
+        optimizer=optimizer(filter(lambda p: p.requires_grad, [*model.parameters()]), lr=initial_learning_rate),
         loss_function=loss_function,
         device=device,
         save_dir=save_dir
@@ -393,7 +364,7 @@ def train_test(cv_fold: int, head_model, train_data_file: pathlib.Path, test_dat
     # > Test the model
     errs_df, _ = run_test(
         cv_fold=cv_fold,
-        model=mdl,
+        model=model,
         test_data=test_dl,
         labels=labels,
         device=device,
@@ -412,9 +383,21 @@ def run_cv(cv_root_dir: pathlib.Path):
         train_data_fl = cv_root_dir / cv_dir / 'train_data.csv'
         test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
         if train_data_fl.is_file() and test_data_fl.is_file():
+            mdl = EncAttentionNet(
+                head_model=EncResNet(
+                    head_model=MODEL(weights=WEIGHTS),
+                    in_channels=1,
+                    out_channels=1
+                ),
+                embedding_size=350,
+                number_of_heads=35,
+                layers_to_freeze=LAYERS_TO_FREEZE,
+                device=DEVICE
+            )
+
             cv_errs_df = train_test(
                 cv_fold=cv_fld,
-                head_model=MODEL,
+                model=mdl,
                 train_data_file=train_data_fl,
                 test_data_file=test_data_fl,
                 features=FEATURES,
@@ -425,8 +408,6 @@ def run_cv(cv_root_dir: pathlib.Path):
                 optimizer=OPTIMIZER,
                 initial_learning_rate=INITIAL_LEARNING_RATE,
                 batch_size=BATCH_SIZE,
-                weights=WEIGHTS,
-                layers_to_freeze=LAYERS_TO_FREEZE,
                 device=DEVICE,
                 save_dir=save_dir / f'cv{cv_fld}'
             )

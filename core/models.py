@@ -1,5 +1,4 @@
 import pathlib
-import typing
 
 import numpy as np
 import torch
@@ -7,6 +6,19 @@ import torchvision.models
 from torch_geometric.nn import GCNConv
 from transformers import AutoConfig, AutoModel
 from sklearn.neighbors import KNeighborsClassifier
+
+# from utils.aux_funcs import freeze_layers
+
+
+def freeze_params(params: list):
+    for param in params:
+        param.requires_grad = False
+
+
+def freeze_layers(model: torch.nn.Module, layers: list):
+    for lyr in layers:
+        print(f'- Freezing layer: {lyr}')
+        eval(f'freeze_params(model.{lyr}.parameters())')
 
 
 class SelfAttention(torch.nn.Module):
@@ -90,7 +102,7 @@ class TransformerBlock(torch.nn.Module):
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self, source_vocabulary_size, embedding_size, number_of_layers, number_of_heads, forward_expansion, p_dropout, max_length, device):
+    def __init__(self, source_vocabulary_size, embedding_size, number_of_layers, number_of_heads, forward_expansion, p_dropout, device):
         super().__init__()
         self.embed_size = embedding_size
 
@@ -120,7 +132,7 @@ class Encoder(torch.nn.Module):
 
 
 class DecoderBlock(torch.nn.Module):
-    def __init__(self, embedding_size, number_of_heads, forward_expansion, p_dropout, device):
+    def __init__(self, embedding_size, number_of_heads, forward_expansion, p_dropout):
         super().__init__()
         self.attention = SelfAttention(embedding_size=embedding_size, number_of_heads=number_of_heads)
         self.norm_lyr = torch.nn.LayerNorm(embedding_size)
@@ -141,14 +153,14 @@ class DecoderBlock(torch.nn.Module):
 
 
 class Decoder(torch.nn.Module):
-    def __init__(self, target_vocabulary_size, embedding_size, number_of_layers, number_of_heads, forward_expansion, p_dropout, max_length, device):
+    def __init__(self, target_vocabulary_size, embedding_size, number_of_heads, forward_expansion, p_dropout, max_length, device):
         super().__init__()
         self.device = device
         self.wrd_embed = torch.nn.Embedding(target_vocabulary_size, embedding_size)
         self.pos_embed = torch.nn.Embedding(max_length, embedding_size)
 
         self.lyrs = torch.nn.ModuleList([
-            DecoderBlock(embedding_size=embedding_size, number_of_heads=number_of_heads, forward_expansion=forward_expansion, p_dropout=p_dropout, device=device)
+            DecoderBlock(embedding_size=embedding_size, number_of_heads=number_of_heads, forward_expansion=forward_expansion, p_dropout=p_dropout)
         ])
 
         self.fc_out = torch.nn.Linear(embedding_size, target_vocabulary_size)
@@ -176,7 +188,7 @@ def get_source_mask(source: torch.Tensor, source_padding_index: int):
     return src_msk
 
 
-def get_target_mask(target: torch.Tensor, target_padding_index: int):
+def get_target_mask(target: torch.Tensor):
     btch_sz, trg_len = target.shape
     trg_msk = torch.tril(torch.ones((trg_len, trg_len))).expand(btch_sz, 1, trg_len, trg_len)
 
@@ -187,9 +199,9 @@ class Transformer(torch.nn.Module):
     def __init__(self, source_vocabulary_size, target_vocabulary_size, source_padding_index, target_padding_index, embedding_size, number_of_layers, number_of_heads, forward_expansion, p_dropout, device=torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'), max_length=100):
         super().__init__()
 
-        self.enc = Encoder(source_vocabulary_size=source_vocabulary_size, embedding_size=embedding_size, number_of_layers=number_of_layers, number_of_heads=number_of_heads, device=device, forward_expansion=forward_expansion, p_dropout=p_dropout, max_length=max_length)
+        self.enc = Encoder(source_vocabulary_size=source_vocabulary_size, embedding_size=embedding_size, number_of_layers=number_of_layers, number_of_heads=number_of_heads, device=device, forward_expansion=forward_expansion, p_dropout=p_dropout)
 
-        self.dec = Decoder(target_vocabulary_size=target_vocabulary_size, embedding_size=embedding_size, number_of_layers=number_of_layers, number_of_heads=number_of_heads, forward_expansion=forward_expansion, p_dropout=p_dropout, device=device, max_length=max_length)
+        self.dec = Decoder(target_vocabulary_size=target_vocabulary_size, embedding_size=embedding_size, number_of_heads=number_of_heads, forward_expansion=forward_expansion, p_dropout=p_dropout, device=device, max_length=max_length)
 
         self.src_pad_idx = int(source_padding_index)
         self.trg_pad_idx = int(target_padding_index)
@@ -198,7 +210,7 @@ class Transformer(torch.nn.Module):
 
     def forward(self, source, target):
         src_msk = get_source_mask(source=source, source_padding_index=self.src_pad_idx)
-        trg_msk = get_target_mask(target=target, target_padding_index=self.trg_pad_idx)
+        trg_msk = get_target_mask(target=target)
         enc_src = self.enc(source, src_msk)
         out = self.dec(target, enc_src, src_msk, trg_msk)
 
@@ -207,7 +219,7 @@ class Transformer(torch.nn.Module):
 
 
 class EncEfficientNetV2(torch.nn.Module):
-    def __init__(self, architecture: str, in_channels: int,  out_size: int, pretrained: bool = False, freeze_layers: bool = False):
+    def __init__(self, architecture: str, in_channels: int,  out_size: int, pretrained: bool = False, freeze_all_layers: bool = False):
         super().__init__()
 
         self.base_mdl = None
@@ -223,7 +235,7 @@ class EncEfficientNetV2(torch.nn.Module):
         self.in_chnls = in_channels
         self.out_sz = out_size
         self.pretrained = pretrained
-        self.freeze_layers = freeze_layers
+        self.freeze_all_layers = freeze_all_layers
 
         if self.base_mdl is not None:
             self.make_model()
@@ -237,7 +249,7 @@ class EncEfficientNetV2(torch.nn.Module):
 
 
         # - Freeze all the layers
-        if self.freeze_layers:
+        if self.freeze_all_layers:
             for param in self.base_mdl.parameters():
                 param.requires_grad = False
 
@@ -593,7 +605,7 @@ class TransformerForRegression(torch.nn.Module):
 
 
 class EncAttentionNet(torch.nn.Module):
-    def __init__(self, head_model, embedding_size, number_of_heads):
+    def __init__(self, head_model, embedding_size, number_of_heads, layers_to_freeze, device):
         super().__init__()
 
         self.head_mdl = head_model
@@ -601,9 +613,23 @@ class EncAttentionNet(torch.nn.Module):
         self.n_heads = int(number_of_heads)
         self.embed_lyr = torch.nn.Conv2d(in_channels=1, out_channels=self.embd_sz, kernel_size=1)
         self.att_lyr = SelfAttention(embedding_size=self.embd_sz, number_of_heads=self.n_heads)
+        self.lyrs_to_frz = layers_to_freeze
+        self.device = device
+
+        self.build_model()
+
+
+    def build_model(self):
+        # > If this parameter is supplied - freeze the corresponding layers
+        if isinstance(self.lyrs_to_frz, list):
+            freeze_layers(model=self.head_mdl.mdl, layers=self.lyrs_to_frz)
+
+        self.to(self.device)
 
     def forward(self, X, p_drop=0.0):
-        msk = get_target_mask(target=X, target_padding_index=0)
+        msk = get_target_mask(target=X)
+        msk = msk.to(self.device)
+
         X = self.embed_lyr(X.view(-1, X.shape[0], self.embd_sz)).transpose(0, 1)
         X = self.att_lyr(X, X, X, msk)
 
@@ -634,6 +660,7 @@ if __name__ == '__main__':
 
     inputs = torch.tensor(np.random.randint(35, 350, (32, 350))).to(DEVICE)
     label = torch.tensor(np.random.randint(35, 350, (32, 350))).to(DEVICE)
+    lyrs_to_frz = []
 
     mdl = EncAttentionNet(
         head_model=EncResNet(
@@ -642,12 +669,14 @@ if __name__ == '__main__':
             out_channels=1
         ),
         embedding_size=350,
-        number_of_heads=35
+        number_of_heads=35,
+        layers_to_freeze=lyrs_to_frz,
+        device=DEVICE
     )
 
-    out = mdl(inputs)
+    result = mdl(inputs)
 
-    print(out)
+    print(result)
 
 #     model = Transformer(
 #     SRC_VOCAB_SIZE,

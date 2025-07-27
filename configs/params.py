@@ -24,18 +24,18 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # - DATA -
 # --------
 # -- Platform
-# PLATFORM = 'linux'
-PLATFORM = 'mac'
+PLATFORM = 'linux'
+# PLATFORM = 'mac'
 # PLATFORM = 'windows'
 
 PATHS = {
     'linux': {
-        'train_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv'),
-        'test_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/test_data.csv'),
+        'train_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/pckt_sz_cv_10_folds/train_test1/train_data.csv'),
+        'test_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/pckt_sz_cv_10_folds/train_test1/test_data.csv'),
         'data_root_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data'),
-        'output_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet'),
+        'output_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet_atten'),
         'experiments_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/experiments'),
-        'cv_root_dir': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds')
+        'cv_root_dir': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/pckt_sz_cv_10_folds')
     },
     'windows': {
         'train_data_path': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv'),
