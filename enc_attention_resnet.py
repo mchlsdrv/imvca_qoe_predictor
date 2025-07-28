@@ -33,9 +33,8 @@ np.random.seed(RANDOM_SEED)
 # - LOCAL HYPERPARAMETERS
 # -- Features
 
-# EXP_NAME = 'piat_mape_brisque'
 EXP_NAME = 'pckt_sz_attention_resent16_frz_lyr_4_brisque'
-# EXP_NAME = 'pckt_sz_mape_loss_no_samp'
+
 if EXP_NAME.startswith('pckt_sz'):
     FEATURES = MICRO_PCKT_SZ_FEATURES
 elif EXP_NAME.startswith('piat'):
@@ -107,7 +106,8 @@ def replace_zeros_with_mean(y, n_labels: int, flatten: bool = False, to_tensor: 
     return no_zero_y
 
 
-def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
+def run_train(cv_fold: int, model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
+    print(f'> Training ...')
     best_epch = 1
     best_loss = np.inf
 
@@ -117,7 +117,8 @@ def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torc
 
     p_drop = 0.0
 
-    for epch in tqdm(range(1, epochs + 1)):
+    for epch in list(range(1, epochs + 1)):
+        print(f'\n\t> Starting epoch {epch}/{epochs + 1}... ')
         p_drop = get_p_drop(
             p_drop=p_drop,
             epoch=epch,
@@ -130,7 +131,7 @@ def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torc
             schedules=LR_SCHEDULES
         )
         train_btch_losses = np.array([])
-        for (X, Y) in train_data:
+        for (X, Y) in tqdm(train_data):
             X = X.to(device)
             Y = replace_zeros_with_mean(
                 y=Y,
@@ -155,11 +156,12 @@ def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torc
 
             train_btch_losses = np.append(train_btch_losses, loss.item())
 
+        print(f'\n\t> Done! Finished {100 * epch / (epochs + 1):.2f}%...')
+
         train_btch_loss_mean, train_btch_loss_std = train_btch_losses.mean(), train_btch_losses.std()
 
         train_loss_means = np.append(train_loss_means, train_btch_loss_mean)
         train_loss_stds = np.append(train_loss_stds, train_btch_loss_std)
-
 
         model.eval()
         val_btch_losses = np.array([])
@@ -186,7 +188,6 @@ def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torc
         val_loss_stds = np.append(val_loss_stds, val_btch_loss_std)
 
         print(f'''
-        ==== CV Fold: {cv_fold} ====
         > Mean Stats for epoch {epch}: 
             - Train loss = {train_btch_loss_mean:.5f}+/-{train_btch_loss_std:.6}
             - Val loss = {val_btch_loss_mean:.5f} + / -{val_btch_loss_std:.6}
@@ -222,7 +223,8 @@ def run_train(cv_fold:int, model: torch.nn.Module, epochs: int, train_data: torc
     )
 
 
-def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list,  device: torch.device, save_dir: pathlib.Path):
+def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path):
+    print(f'> Testing ...')
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
@@ -290,7 +292,7 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
     train_df, val_df = get_train_val_split(data=train_data_df, validation_proportion=0.2)
 
     # > Train data
-    train_ds=EncRowDS(
+    train_ds = EncRowDS(
         data=train_df,
         features=features,
         labels=labels,
@@ -307,7 +309,7 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
     )
 
     # > Val data
-    val_ds=EncRowDS(
+    val_ds = EncRowDS(
         data=val_df,
         features=features,
         labels=labels,
@@ -322,7 +324,6 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
         drop_last=True,
         num_workers=4
     )
-
 
     # > Train the model
     run_train(
@@ -345,7 +346,7 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
     test_data_df = test_data_df.loc[:, [*features, *labels]]
 
     # > Train data
-    test_ds=EncRowDS(
+    test_ds = EncRowDS(
         data=test_data_df,
         features=features,
         labels=labels,
@@ -375,11 +376,11 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
 
 def run_cv(cv_root_dir: pathlib.Path):
     cv_fld = 1
-    # cv_dirs = os.listdir(cv_root_dir)
     cv_dirs = get_files(dir_path=cv_root_dir)
     errors_df = pd.DataFrame()
     save_dir = OUTPUT_DIR / f'{EXP_NAME}_{len(cv_dirs)}_cv_{TS}'
-    for cv_dir in tqdm(cv_dirs):
+    for cv_fld, cv_dir in enumerate(cv_dirs):
+        print(f'=== CV Fold #{cv_fld + 1} ===')
         train_data_fl = cv_root_dir / cv_dir / 'train_data.csv'
         test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
         if train_data_fl.is_file() and test_data_fl.is_file():

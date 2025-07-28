@@ -7,6 +7,7 @@ from torch_geometric.nn import GCNConv
 from transformers import AutoConfig, AutoModel
 from sklearn.neighbors import KNeighborsClassifier
 
+
 # from utils.aux_funcs import freeze_layers
 
 
@@ -54,13 +55,13 @@ class SelfAttention(torch.nn.Module):
         # - The shapes are as follows:
         # queries: (N, query_len, heads, heads_dim)
         # keys: (N, key_len, heads, heads_dim)
-        # emergy: (N, heads, query_len, key_len)
+        # energy: (N, heads, query_len, key_len)
         energy = torch.einsum("nqhd, nkhd -> nhqk", [queries, keys])
 
         if mask is not None:
             energy = energy.masked_fill(mask == 0, float('-1e20'))
 
-        attention = torch.softmax(energy / (self.embed_sz ** (1/2)), dim=3)
+        attention = torch.softmax(energy / (self.embed_sz ** (1 / 2)), dim=3)
 
         # - The shapes are:
         # attention: (N, heads, query_len, key_len)
@@ -114,7 +115,7 @@ class Encoder(torch.nn.Module):
         self.layers = torch.nn.ModuleList(
             [
                 TransformerBlock(embedding_size=embedding_size, number_of_heads=number_of_heads, p_dropout=p_dropout, forward_expansion=forward_expansion)
-            for _ in range(number_of_layers)]
+                for _ in range(number_of_layers)]
         )
 
     def forward(self, X, mask):
@@ -196,17 +197,18 @@ def get_target_mask(target: torch.Tensor):
 
 
 class Transformer(torch.nn.Module):
-    def __init__(self, source_vocabulary_size, target_vocabulary_size, source_padding_index, target_padding_index, embedding_size, number_of_layers, number_of_heads, forward_expansion, p_dropout, device=torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'), max_length=100):
+    def __init__(self, source_vocabulary_size, target_vocabulary_size, source_padding_index, target_padding_index, embedding_size, number_of_layers, number_of_heads, forward_expansion, p_dropout,
+                 device=torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'), max_length=100):
         super().__init__()
 
-        self.enc = Encoder(source_vocabulary_size=source_vocabulary_size, embedding_size=embedding_size, number_of_layers=number_of_layers, number_of_heads=number_of_heads, device=device, forward_expansion=forward_expansion, p_dropout=p_dropout)
+        self.enc = Encoder(source_vocabulary_size=source_vocabulary_size, embedding_size=embedding_size, number_of_layers=number_of_layers, number_of_heads=number_of_heads, device=device, forward_expansion=forward_expansion,
+                           p_dropout=p_dropout)
 
         self.dec = Decoder(target_vocabulary_size=target_vocabulary_size, embedding_size=embedding_size, number_of_heads=number_of_heads, forward_expansion=forward_expansion, p_dropout=p_dropout, device=device, max_length=max_length)
 
         self.src_pad_idx = int(source_padding_index)
         self.trg_pad_idx = int(target_padding_index)
         self.device = device
-
 
     def forward(self, source, target):
         src_msk = get_source_mask(source=source, source_padding_index=self.src_pad_idx)
@@ -217,9 +219,8 @@ class Transformer(torch.nn.Module):
         return out
 
 
-
 class EncEfficientNetV2(torch.nn.Module):
-    def __init__(self, architecture: str, in_channels: int,  out_size: int, pretrained: bool = False, freeze_all_layers: bool = False):
+    def __init__(self, architecture: str, in_channels: int, out_size: int, pretrained: bool = False, freeze_all_layers: bool = False):
         super().__init__()
 
         self.base_mdl = None
@@ -246,7 +247,6 @@ class EncEfficientNetV2(torch.nn.Module):
             self.base_mdl = self.base_mdl(weights=self.weights)
         else:
             self.base_mdl = self.base_mdl()
-
 
         # - Freeze all the layers
         if self.freeze_all_layers:
@@ -276,10 +276,8 @@ class EncEfficientNetV2(torch.nn.Module):
         return x
 
 
-
-
 class EncResNet(torch.nn.Module):
-    def __init__(self, head_model, in_channels: int,  out_channels: int):
+    def __init__(self, head_model, in_channels: int, out_channels: int):
         super().__init__()
 
         self.mdl = head_model
@@ -445,8 +443,7 @@ class AutoEncoder(torch.nn.Module):
         def code_length(self, value):
             self._code_length = value
 
-    def __init__(self, model_name: str, n_features, code_length, layer_activation, reverse: bool = False, save_dir: str or pathlib.Path = pathlib.Path(
-        '../output')):
+    def __init__(self, model_name: str, n_features, code_length, layer_activation, save_dir: str or pathlib.Path, reverse: bool = False):
         super().__init__()
         self.model_name = model_name
         self.n_features = n_features
@@ -565,14 +562,20 @@ class GCNClassifier(torch.nn.Module):
         return x
 
 
-class GRAGDataset(torch.utils.data.Dataset):
-    def __init__(self, knn_neighbors: int = 5):
-        super().__init__()
-        self.knn_classifier = KNeighborsClassifier(n_neighbors=knn_neighbors)
-        self.edges = None
-
-    def get_edges(self, X, y):
-        self.edges = self.knn_classifier.fit(X, y)
+# class GRAGDataset(torch.utils.data.Dataset):
+#     def __init__(self, knn_neighbors: int = 5):
+#         super().__init__()
+#         self.knn_classifier = KNeighborsClassifier(n_neighbors=knn_neighbors)
+#         self.edges = None
+#
+#     def __len__(self):
+#         return len(self.edges)
+#
+#     def get_edges(self, X, y):
+#         self.edges = self.knn_classifier.fit(X, y)
+#
+#     def getitem(self, index):
+#         return self.edges[index]
 
 
 class GCNRegressor(torch.nn.Module):
@@ -618,7 +621,6 @@ class EncAttentionNet(torch.nn.Module):
 
         self.build_model()
 
-
     def build_model(self):
         # > If this parameter is supplied - freeze the corresponding layers
         if isinstance(self.lyrs_to_frz, list):
@@ -642,8 +644,6 @@ class EncAttentionNet(torch.nn.Module):
 
 if __name__ == '__main__':
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
 
     SRC_PAD_IDX = 0
     TRG_PAD_IDX = 0
@@ -691,4 +691,3 @@ if __name__ == '__main__':
 #     device=DEVICE
 # ).to(DEVICE)
 #
-

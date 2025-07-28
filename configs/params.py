@@ -4,7 +4,7 @@ import torch
 from sklearn import svm
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
-from catboost import CatBoostRegressor
+# from catboost import CatBoostRegressor
 
 from core.models import QoENet1D, EncResNet
 
@@ -24,8 +24,9 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # - DATA -
 # --------
 # -- Platform
-PLATFORM = 'linux'
+# PLATFORM = 'linux'
 # PLATFORM = 'mac'
+PLATFORM = 'wexac'
 # PLATFORM = 'windows'
 
 PATHS = {
@@ -36,6 +37,14 @@ PATHS = {
         'output_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/output/enc_resnet_atten'),
         'experiments_dir': pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/experiments'),
         'cv_root_dir': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/pckt_sz_cv_10_folds')
+    },
+    'wexac': {
+        'train_data_path': pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/pckt_sz_cv_10_folds/train_test1/train_data.csv'),
+        'test_data_path': pathlib.Path('/home/projects/bagon/msidorov/projects/phd/imvca_qoe_predictor/data/pckt_sz_cv_10_folds/train_test1/test_data.csv'),
+        'data_root_dir': pathlib.Path(f'/home/projects/bagon/msidorov/projects/phd/imvca_qoe_predictor/data'),
+        'output_dir': pathlib.Path(f'/home/projects/bagon/msidorov/projects/phd/imvca_qoe_predictor/output'),
+        'experiments_dir': pathlib.Path(f'/home/projects/bagon/msidorov/projects/phd/imvca_qoe_predictor/experiments'),
+        'cv_root_dir': pathlib.Path('/home/projects/bagon/msidorov/projects/phd/imvca_qoe_predictor/data/pckt_sz_cv_10_folds')
     },
     'windows': {
         'train_data_path': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv'),
@@ -159,6 +168,6 @@ MODELS = {
     'QoENet1D': QoENet1D,
     'RandomForestRegressor': RandomForestRegressor,
     'XGBoost': XGBRegressor,
-    'CatBoost': CatBoostRegressor,
+    # 'CatBoost': CatBoostRegressor,
     'SVM': svm.SVR
 }
