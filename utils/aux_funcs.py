@@ -1,3 +1,4 @@
+import _io
 import argparse
 import os
 import pathlib
@@ -9,8 +10,6 @@ import torch
 import matplotlib.pyplot as plt
 
 from configs.params import (
-    N_LAYERS,
-    N_UNITS,
     EPOCHS,
     LR_INIT,
     LR_REDUCTION_FREQUENCY,
@@ -22,15 +21,20 @@ from configs.params import (
     OUTLIER_TH,
     MOMENTUM,
     WEIGHT_DECAY,
-    RBM_VISIBLE_UNITS,
-    RBM_HIDDEN_UNITS,
-    RBM_K_GIBBS_STEPS,
     EPSILON,
     DESCRIPTION,
     DROPOUT_DELTA,
     DROPOUT_P_MAX, DROPOUT_P_INIT
 )
 
+def print_info(info: str, verbose: bool = True, logfile: _io.TextIOWrapper = None):
+    if verbose:
+        print(info)
+
+    if isinstance(logfile, _io.TextIOWrapper):
+        print(info, file=logfile)
+    elif not verbose:
+        print(f'WARNING: NO INFO IS BEING PRINTED! (BOTH verbose == {verbose} and type(logfile) == {type(logfile)} != _io.TextIOWrapper')
 
 def get_files(dir_path: pathlib.Path):
     files = os.listdir(dir_path)
@@ -82,8 +86,6 @@ def get_arg_parser():
     parser = argparse.ArgumentParser()
 
     # - GENERAL PARAMETERS
-    parser.add_argument('--n_layers', type=int, default=N_LAYERS, help='Number of NN-Blocks in the network')
-    parser.add_argument('--n_units', type=int, default=N_UNITS, help='Number of units in each NN-Block')
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='The number of samples in each batch')
     parser.add_argument('--lr', type=int, default=LR_INIT, help='Represents the initial learning rate of the optimizer')
     parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of epochs to train the model')
@@ -99,9 +101,6 @@ def get_arg_parser():
     parser.add_argument('--desc', type=str, default=DESCRIPTION, help='The description of the current experiment')
     parser.add_argument('--momentum', type=float, default=MOMENTUM, help='The momentum value to use in training')
     parser.add_argument('--weight_decay', type=float, default=WEIGHT_DECAY, help='The weight decay value to use in training')
-    parser.add_argument('--rbm_visible_units', type=int, default=RBM_VISIBLE_UNITS, help='The number of visible units')
-    parser.add_argument('--rbm_hidden_units', type=int, default=RBM_HIDDEN_UNITS, help='The number of hidden units')
-    parser.add_argument('--rbm_k_gibbs_steps', type=int, default=RBM_K_GIBBS_STEPS, help='The number of steps in the Gibbs sampling')
 
     return parser
 

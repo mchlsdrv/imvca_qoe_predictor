@@ -12,6 +12,7 @@ from core.models import QoENet1D, EncResNet
 # - GENERAL -
 # -----------
 DEBUG = False
+VERBOSE = True
 IGNORE_WARNINGS = False
 EPSILON = 1e-9
 RANDOM_SEED = 0
@@ -26,8 +27,8 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # -- Platform
 # PLATFORM = 'linux'
 # PLATFORM = 'mac'
-PLATFORM = 'wexac'
-# PLATFORM = 'windows'
+# PLATFORM = 'wexac'
+PLATFORM = 'windows'
 
 PATHS = {
     'linux': {
@@ -47,12 +48,13 @@ PATHS = {
         'cv_root_dir': pathlib.Path('/home/projects/bagon/msidorov/projects/phd/imvca_qoe_predictor/data/pckt_sz_cv_10_folds')
     },
     'windows': {
-        'train_data_path': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv'),
-        'test_data_path': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_features_labels.csv'),
-        'data_root_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data'),
-        'output_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\output\\enc_resnet'),
-        'experiments_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\experiments'),
-        'cv_root_dir': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\imvca_qoe_predictor\\data\\extracted\\all_cv_10_folds')
+        'train_data_path': pathlib.Path('/data/extracted/pckt_sz_cv_10_folds\\train_test1\\test_data.csv'),
+        'test_data_path': pathlib.Path('/data/extracted/pckt_sz_cv_10_folds\\train_test1\\test_data.csv'),
+        'data_root_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\phd\\imvca_qoe_predictor\\data'),
+        'output_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\phd\\imvca_qoe_predictor\\output\\enc_attention_resnet'),
+        'experiments_dir': pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\phd\\imvca_qoe_predictor\\experiments'),
+        'cv_root_dir': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\phd\\imvca_qoe_predictor\\data\\extracted\\pckt_sz_cv_10_folds'),
+        # 'cv_root_dir': pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\phd\\imvca_qoe_predictor\\data\\extracted\\cv_10_folds'),
     },
     'mac': {
         'train_data_path': pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/imvca_qoe_predictor/data/extracted/all_cv_10_folds/train_test1/train_data.csv'),
@@ -73,11 +75,6 @@ OUTLIER_TH = 3
 # ----------------
 # - ARCHITECTURE -
 # ----------------
-N_LAYERS = 32
-N_UNITS = 256
-RBM_VISIBLE_UNITS = 784  # 28 X 28 IMAGES
-RBM_HIDDEN_UNITS = 128
-AUTO_ENCODER_CODE_LENGTH_PROPORTION = 32
 
 # ------------
 # - TRAINING -
@@ -121,9 +118,7 @@ DROP_SCHEDULE = {
 MOMENTUM = 0.5
 WEIGHT_DECAY = 1e-5
 
-RBM_K_GIBBS_STEPS = 10
-
-FEATURE_NAMES = {
+RAW_FEATURE_NAMES = {
     'frame.time_relative': 'relative_arrival_time',
     'frame.time_epoch': 'arrival_time',
     'ip.proto': 'ip_protocol',
@@ -135,7 +130,7 @@ FEATURE_NAMES = {
     'udp.length': 'udp_datagram_length',
 }
 
-PACKET_SIZE_FEATURES = [
+PCKT_STAT_FEATURES = [
     'number_of_packet_sizes_in_time_window',
     'number_of_unique_packet_sizes_in_time_window',
     'min_packet_size',
@@ -146,8 +141,9 @@ PACKET_SIZE_FEATURES = [
     'q2_packet_size',
     'q3_packet_size',
 ]
+PCKT_MICRO_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
 
-PIAT_FEATURES = [
+PIAT_STAT_FEATURES = [
     'number_of_piats_in_time_window',
     'number_of_unique_piats_in_time_window',
     'min_piat',
@@ -158,9 +154,8 @@ PIAT_FEATURES = [
     'q2_piat',
     'q3_piat',
 ]
+PIAT_MICRO_FEATURES = [f'piat_{i}' for i in range(1, 351)]
 
-MICRO_PIAT_FEATURES = [f'piat_{i}' for i in range(1, 351)]
-MICRO_PCKT_SZ_FEATURES = [f'packet_size_{i}' for i in range(1, 351)]
 
 
 MODELS = {

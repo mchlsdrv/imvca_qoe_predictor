@@ -14,16 +14,92 @@ import scipy
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from configs.params import OUTLIER_TH, EPSILON, IGNORE_WARNINGS
-from core.models import SelfAttention
 
 if IGNORE_WARNINGS:
     warnings.filterwarnings("ignore")
 
-class AttentionDS(torch.utils.data.Dataset):
-    def __init__(self, features: pd.DataFrame, labels: pd.DataFrame):
+class EncAttentionDS(torch.utils.data.Dataset):
+    def __init__(self, data: pd.DataFrame, features: list, labels: list, p_noise: float, p_row_shuffle: float):
         super().__init__()
-        self.feats_df = features
-        self.lbls_df = labels
+
+        self.data = data
+        self.feat_cols = features
+        self.lbl_cols = labels
+
+        # - Augs
+        self.p_noise = p_noise
+        self.p_row_shuf = p_row_shuffle
+
+        # - Transforms
+        self.min_max_scaler = MinMaxScaler()
+        self.std_scaler = StandardScaler()
+
+        self.feats = None
+        self.lbls = None
+        self.n_chnls = None
+
+        self.make_dataset()
+
+    def __len__(self):
+        return len(self.data)
+
+    def make_dataset(self):
+        # - Drop N/As
+        self.data = self.data.dropna()
+
+        # - Split the data into features and labels
+        self.feats = self.data.loc[:, self.feat_cols]
+        self.lbls = self.data.loc[:, self.lbl_cols]
+
+    def __getitem__(self, index):
+        X = self.feats.iloc[index, :].T.values
+        Y = self.lbls.iloc[index, :].T.values
+
+        # X, Y = self.augmentations(X=X, Y=Y)
+
+        X, Y = self.transforms(X=X, Y=Y)
+
+        return X, Y
+
+    def augmentations(self, X, Y):
+        X, Y = X.astype(np.float32), Y.astype(np.float32)
+        # - Apply random noise addition to the values in each row with probability self.p_smpl
+        p = np.random.random()
+        if p < self.p_noise:
+            X += np.random.randn(len(X))
+
+        # - Apply random shuffle to the values in each row with probability self.p_shuf
+        p = np.random.random()
+        if p < self.p_row_shuf:
+            np.random.shuffle(X)
+
+        return X, Y
+
+    def transforms(self, X, Y):
+        # try:
+        # - BoxCox
+        # X_trans, _ = scipy.stats.boxcox(X[X > 0].astype(np.float64))
+        # X[X > 0] = X_trans.astype(np.float32)
+        #
+        # # - Normalize features
+        # self.min_max_scaler.fit(np.expand_dims(X, -1))
+        # X = self.min_max_scaler.transform(np.expand_dims(X, -1))
+        #
+        # # - Convert to frequency domain
+        # X = np.fft.fft(X)
+        #
+        # # - Standardize the features
+        # self.std_scaler.fit(np.real(X))
+        # X = self.std_scaler.transform(np.real(X))
+
+        X = X.flatten()
+        Y = Y.flatten()
+
+        X = torch.as_tensor(X, dtype=torch.float32)
+
+        Y = torch.as_tensor(Y, dtype=torch.float32)
+
+        return X, Y
 
 class EncRowDS(torch.utils.data.Dataset):
     def __init__(self, data: pd.DataFrame, features: list, labels: list, image_size: int, p_noise: float, p_row_shuffle: float):

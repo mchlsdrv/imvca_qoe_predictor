@@ -1,3 +1,4 @@
+import _io
 import itertools
 import os
 import pathlib
@@ -10,55 +11,62 @@ from tqdm import tqdm
 
 from configs.params import (
     TS,
-    BATCH_SIZE,
     LR_SCHEDULES,
-    MICRO_PCKT_SZ_FEATURES,
-    MICRO_PIAT_FEATURES,
     DEVICE,
     CV_ROOT_DIR,
     OUTPUT_DIR,
     DROP_SCHEDULE,
     EPSILON,
-    RANDOM_SEED
+    RANDOM_SEED, PCKT_MICRO_FEATURES, PIAT_MICRO_FEATURES, BATCH_SIZE, VERBOSE
 )
 
 from core.models import EncResNet, EncAttentionNet
-from utils.data_utils import get_train_val_split, EncRowDS
+from utils.data_utils import get_train_val_split, EncAttentionDS
 from utils.regression_utils import calc_errors
 from utils.train_utils import save_checkpoint, load_checkpoint, reduce_lr, MAPELoss
-from utils.aux_funcs import plot_losses, get_p_drop, get_files
+from utils.aux_funcs import plot_losses, get_p_drop, get_files, print_info
 
 np.random.seed(RANDOM_SEED)
 
-# - LOCAL HYPERPARAMETERS
-# -- Features
 
-EXP_NAME = 'pckt_sz_attention_resent16_frz_lyr_4_brisque'
+FEATURES_TYPE = 'pckt_micro'
+# FEATURES_TYPE = 'piat_micro'
+# FEATURES_TYPE = 'pckt_piat_micro'
+# FEATURES_TYPE = 'pckt_stat'
+# FEATURES_TYPE = 'piat_stat'
+# FEATURES_TYPE = 'all'
+if FEATURES_TYPE == 'pckt_micro':
+    FEATURES = PCKT_MICRO_FEATURES
+elif FEATURES_TYPE == 'piat_micro':
+    FEATURES = PIAT_MICRO_FEATURES
+elif FEATURES_TYPE == 'pckt_piat_micro':
+    FEATURES = [*PCKT_MICRO_FEATURES, *PIAT_MICRO_FEATURES]
 
-if EXP_NAME.startswith('pckt_sz'):
-    FEATURES = MICRO_PCKT_SZ_FEATURES
-elif EXP_NAME.startswith('piat'):
-    FEATURES = MICRO_PIAT_FEATURES
-elif EXP_NAME.startswith('all'):
-    FEATURES = [*MICRO_PCKT_SZ_FEATURES, *MICRO_PIAT_FEATURES]
-
-LABELS = [
-    'brisque',
-    # 'piqe',
-    # 'fps',
-]
+LABELS = ['brisque']
+# LABELS = ['piqe']
+# LABELS = ['fps']
+LABELS_NAME = ''
+for idx, lbl in enumerate(LABELS):
+    LABELS_NAME += lbl
+    if idx != len(LABELS) - 1:
+        LABELS_NAME += '_'
 
 # -- Head model parameters
-# MODEL = torchvision.models.resnet34
-# WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
+HEAD_MODEL_NAME = 'resnet16'
+WEIGHTS_NAME = 'imagenet1k'
+WEIGHTS = None
 
-MODEL = torchvision.models.resnet18
-WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
-# WEIGHTS = None
+if HEAD_MODEL_NAME == 'resnet16':
+    HEAD_MODEL = torchvision.models.resnet18
+    if WEIGHTS_NAME == 'imagenet1k':
+        WEIGHTS = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
+elif HEAD_MODEL_NAME == 'resnet34':
+    HEAD_MODEL = torchvision.models.resnet34
+    if WEIGHTS_NAME == 'imagenet1k':
+        WEIGHTS = torchvision.models.ResNet34_Weights.IMAGENET1K_V1
+else:
+    HEAD_MODEL = None
 
-IMAGE_SIZE = 5
-
-# LAYERS_TO_FREEZE = []
 N_LAYERS_TO_FREEZE = 4
 LAYERS_TO_FREEZE = [
     'conv1',
@@ -67,8 +75,10 @@ LAYERS_TO_FREEZE = [
 ]
 
 # -- Train parameters
-EPOCHS = 50
+EPOCHS = 15
 INITIAL_LEARNING_RATE = 1e-3
+
+
 OPTIMIZER = torch.optim.Adam
 LOSS_FUNCTION = MAPELoss()
 
@@ -79,6 +89,7 @@ EMBEDDING_SIZE = 350
 NUMBER_OF_HEADS = 35
 
 
+EXP_NAME = f'{LABELS_NAME}_{FEATURES_TYPE}-headmodel_{HEAD_MODEL_NAME}_freezelayers_{N_LAYERS_TO_FREEZE}_epochs_{EPOCHS}'
 # - CHECKS
 # LOSS_FUNCTION(torch.as_tensor([50, 45, 17], dtype=torch.float32), torch.as_tensor([78, 35, 14], dtype=torch.float32))
 
@@ -106,8 +117,8 @@ def replace_zeros_with_mean(y, n_labels: int, flatten: bool = False, to_tensor: 
     return no_zero_y
 
 
-def run_train(cv_fold: int, model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path):
-    print(f'> Training ...')
+def run_train(model: torch.nn.Module, epochs: int, train_data: torch.utils.data.DataLoader, val_data: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function, device: torch.device, save_dir: pathlib.Path, logfile: _io.TextIOWrapper):
+    print_info(f'> Training ...', verbose=VERBOSE, logfile=logfile)
     best_epch = 1
     best_loss = np.inf
 
@@ -118,7 +129,7 @@ def run_train(cv_fold: int, model: torch.nn.Module, epochs: int, train_data: tor
     p_drop = 0.0
 
     for epch in list(range(1, epochs + 1)):
-        print(f'\n\t> Starting epoch {epch}/{epochs + 1}... ')
+        print_info(f'\n\t> Starting epoch {epch}/{epochs}... ', verbose=VERBOSE, logfile=logfile)
         p_drop = get_p_drop(
             p_drop=p_drop,
             epoch=epch,
@@ -156,7 +167,7 @@ def run_train(cv_fold: int, model: torch.nn.Module, epochs: int, train_data: tor
 
             train_btch_losses = np.append(train_btch_losses, loss.item())
 
-        print(f'\n\t> Done! Finished {100 * epch / (epochs + 1):.2f}%...')
+        print_info(f'\n\t> Done! Finished {100 * epch / epochs:.2f}%...', verbose=VERBOSE, logfile=logfile)
 
         train_btch_loss_mean, train_btch_loss_std = train_btch_losses.mean(), train_btch_losses.std()
 
@@ -187,12 +198,12 @@ def run_train(cv_fold: int, model: torch.nn.Module, epochs: int, train_data: tor
         val_loss_means = np.append(val_loss_means, val_btch_loss_mean)
         val_loss_stds = np.append(val_loss_stds, val_btch_loss_std)
 
-        print(f'''
+        print_info(f'''
         > Mean Stats for epoch {epch}: 
             - Train loss = {train_btch_loss_mean:.5f}+/-{train_btch_loss_std:.6}
             - Val loss = {val_btch_loss_mean:.5f} + / -{val_btch_loss_std:.6}
             - Val / Train (%) = {100 * (1 - val_btch_loss_mean / (train_btch_loss_mean + EPSILON)):.5f}
-        ''')
+        ''', verbose=VERBOSE, logfile=logfile)
 
         plot_losses(
             train_losses=train_loss_means,
@@ -203,7 +214,7 @@ def run_train(cv_fold: int, model: torch.nn.Module, epochs: int, train_data: tor
         )
 
         if val_btch_loss_mean < best_loss:
-            print(f'> Saving checkpoint for epoch {best_epch} with loss {val_btch_loss_mean:.5f} < {best_loss:.5f}')
+            print_info(f'> Saving checkpoint for epoch {best_epch} with loss {val_btch_loss_mean:.5f} < {best_loss:.5f}', verbose=VERBOSE, logfile=logfile)
 
             save_checkpoint(
                 model=model,
@@ -216,15 +227,15 @@ def run_train(cv_fold: int, model: torch.nn.Module, epochs: int, train_data: tor
             best_epch = epch
 
     # - Load the checkpoint with the best loss
-    print(f'> Loading best checkpoint from {best_epch} epoch with loss {best_loss:.4f}...')
+    print_info(f'> Loading best checkpoint from {best_epch} epoch with loss {best_loss:.4f}...', verbose=VERBOSE, logfile=logfile)
     load_checkpoint(
         model=model,
         checkpoint_file=save_dir / 'best_checkpoint.ckpt'
     )
 
 
-def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path):
-    print(f'> Testing ...')
+def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.DataLoader, labels: list, device: torch.device, save_dir: pathlib.Path, logfile: _io.TextIOWrapper):
+    print_info(f'> Testing ...', verbose=VERBOSE, logfile=logfile)
     p_drop = 0.0
     model.eval()
     errors_df = pd.DataFrame()
@@ -263,8 +274,8 @@ def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.D
             metadata_columns = [f'{typ}_{lbl}' for (typ, lbl) in itertools.product(['true', 'pred'], labels)]
 
             metadata_df = pd.concat([metadata_df, pd.DataFrame(columns=metadata_columns, data=np.hstack([true.reshape(len(labels), -1).T, pred.reshape(len(labels), -1).T]))])
-    print(f'==== CV Fold: {cv_fold} ====')
-    print(f'> Test stats:\n{errors_df.describe()}')
+    print_info(f'==== CV Fold: {cv_fold} ====', verbose=VERBOSE, logfile=logfile)
+    print_info(f'> Test stats:\n{errors_df.describe()}', verbose=VERBOSE, logfile=logfile)
 
     # - Save the metadata
     metadata_df.reset_index(inplace=True, drop=True)
@@ -273,10 +284,12 @@ def run_test(cv_fold: int, model: torch.nn.Module, test_data: torch.utils.data.D
     return errors_df.reset_index(drop=True), metadata_df
 
 
-def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, image_size: int, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
-               batch_size: int, device: torch.device, save_dir: pathlib.Path):
-    # - Create the OUTPUT_DIR
-    os.makedirs(save_dir, exist_ok=True)
+def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_file: pathlib.Path, features: list, labels: list, train_epochs: int, loss_function, optimizer, initial_learning_rate: float,
+               batch_size: int, device: torch.device, save_dir: pathlib.Path, logfile: _io.TextIOWrapper):
+
+    # - Ensure that the save directory exists
+    assert save_dir.is_dir(), f'ERROR: No such directory {save_dir}!'
+
     # - Train
     # > Load the train dataframe
     train_data_df = pd.read_csv(train_data_file)
@@ -292,11 +305,10 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
     train_df, val_df = get_train_val_split(data=train_data_df, validation_proportion=0.2)
 
     # > Train data
-    train_ds = EncRowDS(
+    train_ds = EncAttentionDS(
         data=train_df,
         features=features,
         labels=labels,
-        image_size=image_size,
         p_noise=AUG_P_NOISE,
         p_row_shuffle=AUG_P_ROW_SHUFFLE
     )
@@ -309,11 +321,10 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
     )
 
     # > Val data
-    val_ds = EncRowDS(
+    val_ds = EncAttentionDS(
         data=val_df,
         features=features,
         labels=labels,
-        image_size=image_size,
         p_noise=AUG_P_NOISE,
         p_row_shuffle=AUG_P_ROW_SHUFFLE
     )
@@ -327,7 +338,6 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
 
     # > Train the model
     run_train(
-        cv_fold=cv_fold,
         model=model,
         epochs=train_epochs,
         train_data=train_dl,
@@ -335,7 +345,8 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
         optimizer=optimizer(filter(lambda p: p.requires_grad, [*model.parameters()]), lr=initial_learning_rate),
         loss_function=loss_function,
         device=device,
-        save_dir=save_dir
+        save_dir=save_dir,
+        logfile=logfile
     )
 
     # - Test
@@ -346,11 +357,10 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
     test_data_df = test_data_df.loc[:, [*features, *labels]]
 
     # > Train data
-    test_ds = EncRowDS(
+    test_ds = EncAttentionDS(
         data=test_data_df,
         features=features,
         labels=labels,
-        image_size=image_size,
         p_noise=0.0,
         p_row_shuffle=0.0
     )
@@ -369,60 +379,66 @@ def train_test(cv_fold: int, model, train_data_file: pathlib.Path, test_data_fil
         test_data=test_dl,
         labels=labels,
         device=device,
-        save_dir=save_dir
+        save_dir=save_dir,
+        logfile=logfile
     )
     return errs_df
 
 
 def run_cv(cv_root_dir: pathlib.Path):
-    cv_fld = 1
     cv_dirs = get_files(dir_path=cv_root_dir)
     errors_df = pd.DataFrame()
     save_dir = OUTPUT_DIR / f'{EXP_NAME}_{len(cv_dirs)}_cv_{TS}'
-    for cv_fld, cv_dir in enumerate(cv_dirs):
-        print(f'=== CV Fold #{cv_fld + 1} ===')
-        train_data_fl = cv_root_dir / cv_dir / 'train_data.csv'
-        test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
-        if train_data_fl.is_file() and test_data_fl.is_file():
-            mdl = EncAttentionNet(
-                head_model=EncResNet(
-                    head_model=MODEL(weights=WEIGHTS),
-                    in_channels=1,
-                    out_channels=1
-                ),
-                embedding_size=350,
-                number_of_heads=35,
-                layers_to_freeze=LAYERS_TO_FREEZE,
-                device=DEVICE
-            )
+    os.makedirs(save_dir, exist_ok=True)
+    with (save_dir / 'log.txt').open(mode='w') as lf:
+        for cv_fld, cv_dir in enumerate(cv_dirs):
+            print_info(f'=== CV Fold #{cv_fld + 1} ===', verbose=VERBOSE, logfile=lf)
+            train_data_fl = cv_root_dir / cv_dir / 'train_data.csv'
+            test_data_fl = cv_root_dir / cv_dir / 'test_data.csv'
+            if train_data_fl.is_file() and test_data_fl.is_file():
+                mdl = EncAttentionNet(
+                    head_model=EncResNet(
+                        head_model=HEAD_MODEL(weights=WEIGHTS),
+                        in_channels=1,
+                        out_channels=1
+                    ),
+                    embedding_size=350,
+                    number_of_heads=35,
+                    layers_to_freeze=LAYERS_TO_FREEZE,
+                    device=DEVICE
+                )
 
-            cv_errs_df = train_test(
-                cv_fold=cv_fld,
-                model=mdl,
-                train_data_file=train_data_fl,
-                test_data_file=test_data_fl,
-                features=FEATURES,
-                labels=LABELS,
-                image_size=IMAGE_SIZE,
-                train_epochs=EPOCHS,
-                loss_function=LOSS_FUNCTION,
-                optimizer=OPTIMIZER,
-                initial_learning_rate=INITIAL_LEARNING_RATE,
-                batch_size=BATCH_SIZE,
-                device=DEVICE,
-                save_dir=save_dir / f'cv{cv_fld}'
-            )
+                # - Create the CV save dir
+                cv_save_dir = save_dir / f'cv{cv_fld}'
+                os.makedirs(cv_save_dir)
 
-            errors_df = pd.concat([errors_df, cv_errs_df])
-            cv_fld += 1
+                cv_errs_df = train_test(
+                    cv_fold=cv_fld,
+                    model=mdl,
+                    train_data_file=train_data_fl,
+                    test_data_file=test_data_fl,
+                    features=FEATURES,
+                    labels=LABELS,
+                    train_epochs=EPOCHS,
+                    loss_function=LOSS_FUNCTION,
+                    optimizer=OPTIMIZER,
+                    initial_learning_rate=INITIAL_LEARNING_RATE,
+                    batch_size=BATCH_SIZE,
+                    device=DEVICE,
+                    save_dir=cv_save_dir,
+                    logfile=lf
+                )
 
-    errors_df.reset_index(drop=True)
-    errors_df.to_csv(save_dir / 'final_errors.csv', index=False)
+                errors_df = pd.concat([errors_df, cv_errs_df])
+                cv_fld += 1
 
-    print(f'=====================================')
-    print(f'> Final {len(cv_dirs)}-fold CV Stats')
-    print(f'{errors_df.describe()}')
-    print(f'=====================================')
+        errors_df.reset_index(drop=True)
+        errors_df.to_csv(save_dir / 'final_errors.csv', index=False)
+
+        print_info(f'=====================================', verbose=VERBOSE, logfile=lf)
+        print_info(f'> Final {len(cv_dirs)}-fold CV Stats', verbose=VERBOSE, logfile=lf)
+        print_info(f'{errors_df.describe()}', verbose=VERBOSE, logfile=lf)
+        print_info(f'=====================================', verbose=VERBOSE, logfile=lf)
 
 
 if __name__ == '__main__':
