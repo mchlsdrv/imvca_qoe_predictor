@@ -409,7 +409,7 @@ def run_cv(cv_root_dir: pathlib.Path):
                 )
 
                 # - Create the CV save dir
-                cv_save_dir = save_dir / f'cv{cv_fld}'
+                cv_save_dir = save_dir / f'cv{cv_fld+1}'
                 os.makedirs(cv_save_dir)
 
                 cv_errs_df = train_test(
